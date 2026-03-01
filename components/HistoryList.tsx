@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect, useMemo } from 'react';
-import { Loader2, FileText, X, Save, User } from 'lucide-react';
+import { Loader2, FileText, X, Save, User, Search } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 
 type Filter = '全件' | '自分の作成';
@@ -31,6 +31,7 @@ export default function HistoryList({ userId, userName, refreshTrigger }: Histor
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
     const [filter, setFilter] = useState<Filter>('自分の作成');
+    const [searchQuery, setSearchQuery] = useState('');
     const [selectedRecord, setSelectedRecord] = useState<MinutesRecord | null>(null);
 
     // Edit state
@@ -63,11 +64,19 @@ export default function HistoryList({ userId, userName, refreshTrigger }: Histor
     }, [userId, refreshTrigger]);
 
     const filtered = useMemo(() => {
+        let result = records;
         if (filter === '自分の作成') {
-            return records.filter(r => r.user_id === userId);
+            result = result.filter(r => r.user_id === userId);
         }
-        return records;
-    }, [records, filter, userId]);
+        if (searchQuery.trim()) {
+            const q = searchQuery.trim().toLowerCase();
+            result = result.filter(r =>
+                (r.client_name || '').toLowerCase().includes(q) ||
+                (r.summary || '').toLowerCase().includes(q)
+            );
+        }
+        return result;
+    }, [records, filter, userId, searchQuery]);
 
     const formatTimestamp = (dateStr: string) => {
         const d = new Date(dateStr);
@@ -164,7 +173,19 @@ export default function HistoryList({ userId, userName, refreshTrigger }: Histor
 
     return (
         <>
-            {/* Filter buttons - standalone section */}
+            {/* Search bar */}
+            <div className="relative mb-6">
+                <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-[18px] h-[18px] text-slate-400" />
+                <input
+                    type="text"
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                    placeholder="検索（会社名・内容）"
+                    className="w-full bg-white border border-slate-200 rounded-[14px] pl-11 pr-4 py-4 text-[15px] text-slate-700 placeholder:text-slate-400 focus:border-violet-300 focus:shadow-[0_0_0_4px_rgba(124,58,237,0.08)] outline-none transition-all"
+                />
+            </div>
+
+            {/* Filter buttons */}
             <div className="flex gap-3 mb-6">
                 {(['全件', '自分の作成'] as Filter[]).map(f => (
                     <button
