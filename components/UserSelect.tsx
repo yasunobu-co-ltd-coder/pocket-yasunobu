@@ -1,8 +1,10 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { Loader2, User, RefreshCw, Mic, X, Plus, Trash2 } from 'lucide-react';
+import { Loader2, User, RefreshCw, Mic, X, Plus, Trash2, Lock } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
+
+const VALID_PIN = '8004';
 
 export interface UserData {
     id: string;
@@ -15,12 +17,30 @@ interface UserSelectProps {
 }
 
 export default function UserSelect({ onSelect }: UserSelectProps) {
+    const [isPinVerified, setIsPinVerified] = useState(false);
+    const [pin, setPin] = useState('');
+    const [pinError, setPinError] = useState('');
     const [users, setUsers] = useState<UserData[]>([]);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
     const [newUserName, setNewUserName] = useState('');
     const [deleteMode, setDeleteMode] = useState(false);
     const [isAdding, setIsAdding] = useState(false);
+
+    useEffect(() => {
+        const verified = sessionStorage.getItem('pocket_matip_pin_verified');
+        if (verified === 'true') setIsPinVerified(true);
+    }, []);
+
+    const handlePinSubmit = () => {
+        if (pin === VALID_PIN) {
+            setIsPinVerified(true);
+            sessionStorage.setItem('pocket_matip_pin_verified', 'true');
+            setPinError('');
+        } else {
+            setPinError('PINコードが正しくありません');
+        }
+    };
 
     const fetchUsers = async () => {
         setLoading(true);
@@ -104,6 +124,43 @@ export default function UserSelect({ onSelect }: UserSelectProps) {
             alert('削除失敗: ' + msg);
         }
     };
+
+    if (!isPinVerified) {
+        return (
+            <div className="min-h-screen flex flex-col items-center justify-center px-8 py-20"
+                style={{ background: 'linear-gradient(135deg, #f5f3ff 0%, #ede9fe 100%)' }}>
+                <div className="mb-12 text-center animate-fade-in-up">
+                    <div className="w-20 h-20 bg-gradient-to-br from-violet-600 to-violet-800 rounded-[22px] flex items-center justify-center mx-auto mb-6 shadow-[0_8px_20px_rgba(124,58,237,0.35)]">
+                        <Lock className="w-9 h-9 text-white" />
+                    </div>
+                    <h1 className="font-extrabold text-[26px] bg-gradient-to-r from-violet-800 to-violet-500 bg-clip-text text-transparent tracking-[-0.5px] mb-2">
+                        Pocket Matip
+                    </h1>
+                    <p className="text-slate-400 text-[13px]">PINコードを入力してください</p>
+                </div>
+                <div className="w-full max-w-[360px] bg-white/90 backdrop-blur-[10px] rounded-[24px] p-8 shadow-[0_20px_40px_-10px_rgba(124,58,237,0.15)] border border-white/60 flex flex-col items-center gap-5">
+                    <input
+                        type="password"
+                        inputMode="numeric"
+                        maxLength={4}
+                        value={pin}
+                        onChange={e => setPin(e.target.value.replace(/\D/g, '').slice(0, 4))}
+                        onKeyDown={e => { if (e.key === 'Enter') handlePinSubmit(); }}
+                        placeholder="____"
+                        className="bg-white border border-slate-200 rounded-[16px] px-6 py-5 text-[28px] font-bold text-slate-700 text-center tracking-[12px] w-[180px] focus:border-violet-300 focus:shadow-[0_0_0_4px_rgba(124,58,237,0.08)] outline-none transition-all"
+                    />
+                    {pinError && <p className="text-red-500 text-[13px]">{pinError}</p>}
+                    <button
+                        onClick={handlePinSubmit}
+                        disabled={pin.length !== 4}
+                        className="bg-violet-600 text-white rounded-[16px] px-8 py-4 font-bold text-[15px] hover:bg-violet-700 transition-colors active:scale-95 disabled:opacity-50 w-[180px]"
+                    >
+                        確認
+                    </button>
+                </div>
+            </div>
+        );
+    }
 
     return (
         <div className="min-h-screen flex flex-col items-center justify-center px-8 py-20"
