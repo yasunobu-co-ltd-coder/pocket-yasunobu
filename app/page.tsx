@@ -37,8 +37,8 @@ export default function Page() {
     <div className="min-h-screen flex flex-col font-sans bg-slate-50/50">
 
       {/* ===== HEADER ===== */}
-      <header className="sticky top-0 z-50 bg-white/90 backdrop-blur-[10px] border-b border-black/5">
-        <div className="px-6 py-4 flex items-center justify-between">
+      <header className="bg-white z-50 border-b border-slate-100">
+        <div className="px-6 py-5 flex items-center justify-between">
           <span className="font-extrabold text-[17px] bg-gradient-to-r from-violet-800 to-violet-500 bg-clip-text text-transparent tracking-[-0.5px]">
             Pocket Matip
           </span>
@@ -56,7 +56,7 @@ export default function Page() {
       </header>
 
       {/* ===== MAIN CONTENT ===== */}
-      <main className="flex-1 px-5 pt-14 pb-10">
+      <main className="flex-1 px-6 pt-10 pb-10">
 
         {/* ===== HOME TAB ===== */}
         {activeTab === 'home' && mode === 'idle' && (

@@ -11,28 +11,17 @@
   --danger: #ef4444;
 }
 
-* {
-  margin: 0;
-  padding: 0;
-  box-sizing: border-box;
-}
-
 html {
   background: var(--bg-app);
-  min-height: 100vh;
 }
 
 body {
-  margin-left: auto;
-  margin-right: auto;
   font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
   background: white;
   color: var(--text-main);
-  min-height: 100vh;
   overflow-x: hidden;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
-  box-shadow: 0 0 50px rgba(0, 0, 0, 0.05);
 }
 
 /* Scrollbar */
