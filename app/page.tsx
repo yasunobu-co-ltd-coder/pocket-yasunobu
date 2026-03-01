@@ -56,7 +56,7 @@ export default function Page() {
       </header>
 
       {/* ===== MAIN CONTENT ===== */}
-      <main className="flex-1 px-5 pt-8 pb-10">
+      <main className="flex-1 px-5 pt-14 pb-10">
 
         {/* ===== HOME TAB ===== */}
         {activeTab === 'home' && mode === 'idle' && (
