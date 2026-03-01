@@ -94,7 +94,7 @@ export default function Page() {
               </div>
               <div className="bg-white rounded-[20px] border border-slate-200 shadow-[0_10px_25px_-5px_rgba(0,0,0,0.05),0_8px_10px_-6px_rgba(0,0,0,0.01)]">
                 <div className="max-h-[420px] overflow-y-auto p-2">
-                  <HistoryList userId={currentUser.id} refreshTrigger={refreshTrigger} />
+                  <HistoryList userId={currentUser.id} userName={currentUser.name} refreshTrigger={refreshTrigger} />
                 </div>
               </div>
             </section>
@@ -121,7 +121,7 @@ export default function Page() {
             </div>
             <div className="bg-white rounded-[20px] border border-slate-200 shadow-[0_10px_25px_-5px_rgba(0,0,0,0.05),0_8px_10px_-6px_rgba(0,0,0,0.01)] min-h-[400px]">
               <div className="p-2">
-                <HistoryList userId={currentUser.id} refreshTrigger={refreshTrigger} />
+                <HistoryList userId={currentUser.id} userName={currentUser.name} refreshTrigger={refreshTrigger} />
               </div>
             </div>
           </div>
