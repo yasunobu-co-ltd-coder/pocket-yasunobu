@@ -10,6 +10,7 @@ interface HistoryListProps {
     userId: string;
     userName: string;
     refreshTrigger: number;
+    initialSearch?: string;
 }
 
 interface MinutesRecord {
@@ -26,12 +27,12 @@ interface MinutesRecord {
     keywords?: string[];
 }
 
-export default function HistoryList({ userId, userName, refreshTrigger }: HistoryListProps) {
+export default function HistoryList({ userId, userName, refreshTrigger, initialSearch }: HistoryListProps) {
     const [records, setRecords] = useState<MinutesRecord[]>([]);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
     const [filter, setFilter] = useState<Filter>('自分の作成');
-    const [searchQuery, setSearchQuery] = useState('');
+    const [searchQuery, setSearchQuery] = useState(initialSearch || '');
     const [selectedRecord, setSelectedRecord] = useState<MinutesRecord | null>(null);
 
     // Edit state
