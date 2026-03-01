@@ -3,6 +3,7 @@
 import { useState, useRef, useEffect } from 'react';
 import { Mic, Square, Save, Loader2, Check, Upload, FileAudio } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
+import { splitAudioIntoChunks, transcribeChunksParallel } from '@/lib/audio-chunker';
 
 interface VoiceRecorderProps {
     userId: string;
@@ -261,6 +262,47 @@ export default function VoiceRecorder({ userId, userName, onSaved, onCancel }: V
     };
 
     // === アップロードモード ===
+    // 小さいファイル（25MB以下）はそのまま送信
+    const transcribeSingleFile = async (file: File): Promise<string> => {
+        const formData = new FormData();
+        formData.append('file', file);
+        formData.append('chunkIndex', '0');
+
+        const resp = await fetch('/api/transcribe-chunk', {
+            method: 'POST',
+            body: formData,
+        });
+
+        if (!resp.ok) {
+            const errData = await resp.json().catch(() => ({ error: 'Unknown error' }));
+            throw new Error(errData.error || `文字起こし失敗 (${resp.status})`);
+        }
+
+        const data = await resp.json();
+        return data.text || '';
+    };
+
+    // 大きいファイルは分割して並列処理
+    const transcribeWithChunking = async (file: File): Promise<string> => {
+        setProcessStep('音声ファイルを解析・分割中...');
+        const { chunks, totalDuration } = await splitAudioIntoChunks(file);
+
+        const mins = Math.floor(totalDuration / 60);
+        const secs = Math.floor(totalDuration % 60);
+        setProcessStep(`${mins}分${secs}秒の音声を${chunks.length}チャンクに分割しました。文字起こし中...`);
+
+        const CONCURRENCY = 10;
+        const transcript = await transcribeChunksParallel(
+            chunks,
+            CONCURRENCY,
+            (completed, total) => {
+                setProcessStep(`文字起こし中... (${completed}/${total}チャンク完了)`);
+            }
+        );
+
+        return transcript;
+    };
+
     const handleAudioFileSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
         const file = e.target.files?.[0];
         if (!file) return;
@@ -271,8 +313,11 @@ export default function VoiceRecorder({ userId, userName, onSaved, onCancel }: V
             alert('対応していないファイル形式です。\nmp3, m4a, wav ファイルをお選びください。');
             return;
         }
-        if (file.size > 25 * 1024 * 1024) {
-            alert(`ファイルサイズが大きすぎます（${(file.size / 1024 / 1024).toFixed(1)}MB）。\n25MB以下のファイルをお選びください。`);
+
+        // 200MB上限（分割処理するのでWhisperの25MB制限は超えてOK）
+        const MAX_FILE_SIZE = 200 * 1024 * 1024;
+        if (file.size > MAX_FILE_SIZE) {
+            alert(`ファイルサイズが大きすぎます（${(file.size / 1024 / 1024).toFixed(0)}MB）。\n200MB以下のファイルをお選びください。`);
             return;
         }
 
@@ -282,23 +327,17 @@ export default function VoiceRecorder({ userId, userName, onSaved, onCancel }: V
         setProcessStep('音声ファイルを文字起こし中...');
 
         try {
-            const formData = new FormData();
-            formData.append('file', file);
-            formData.append('chunkIndex', '0');
+            let transcript: string;
 
-            const resp = await fetch('/api/transcribe-chunk', {
-                method: 'POST',
-                body: formData,
-            });
-
-            if (!resp.ok) {
-                const errData = await resp.json().catch(() => ({ error: 'Unknown error' }));
-                throw new Error(errData.error || `文字起こし失敗 (${resp.status})`);
+            // 25MB以下ならそのまま、超えたら分割並列処理
+            if (file.size <= 24 * 1024 * 1024) {
+                transcript = await transcribeSingleFile(file);
+            } else {
+                transcript = await transcribeWithChunking(file);
             }
 
-            const data = await resp.json();
-            if (data.text && data.text.trim()) {
-                setEditableTranscript(data.text.trim());
+            if (transcript.trim()) {
+                setEditableTranscript(transcript.trim());
                 setShowTranscript(true);
             } else {
                 alert('音声を認識できませんでした。ファイルを確認してください。');
