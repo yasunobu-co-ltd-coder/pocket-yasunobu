@@ -182,19 +182,19 @@ export default function UserSelect({ onSelect }: UserSelectProps) {
 
                 {/* Add user form */}
                 {!loading && !error && !deleteMode && (
-                    <div className="mt-6 flex gap-3">
+                    <div className="mt-6 flex flex-col gap-3">
                         <input
                             type="text"
                             value={newUserName}
                             onChange={(e) => setNewUserName(e.target.value)}
                             onKeyDown={(e) => { if (e.key === 'Enter') handleAddUser(); }}
                             placeholder="新しいユーザー名"
-                            className="flex-1 bg-white border border-slate-200 rounded-[12px] px-4 py-3 text-[14px] text-slate-700 placeholder:text-slate-400 focus:border-violet-300 focus:shadow-[0_0_0_4px_rgba(124,58,237,0.08)] outline-none transition-all"
+                            className="w-full bg-white border border-slate-200 rounded-[16px] px-5 py-4 text-[15px] text-slate-700 placeholder:text-slate-400 focus:border-violet-300 focus:shadow-[0_0_0_4px_rgba(124,58,237,0.08)] outline-none transition-all"
                         />
                         <button
                             onClick={handleAddUser}
                             disabled={isAdding || !newUserName.trim()}
-                            className="flex-shrink-0 bg-violet-600 text-white rounded-[12px] px-4 py-3 font-bold text-[14px] hover:bg-violet-700 transition-colors active:scale-95 disabled:opacity-50 flex items-center gap-1.5 whitespace-nowrap"
+                            className="w-full bg-violet-600 text-white rounded-[16px] px-4 py-4 font-bold text-[15px] hover:bg-violet-700 transition-colors active:scale-95 disabled:opacity-50 flex items-center justify-center gap-1.5 whitespace-nowrap"
                         >
                             {isAdding ? <Loader2 className="w-4 h-4 animate-spin" /> : <Plus className="w-4 h-4" />}
                             追加
