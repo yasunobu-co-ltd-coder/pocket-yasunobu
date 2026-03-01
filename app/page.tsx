@@ -147,7 +147,17 @@ export default function Page() {
               />
             </div>
 
-            {/* 2. Record button */}
+            {/* 2. Monthly count */}
+            <section>
+              <h2 className="text-[13px] font-bold text-slate-400 uppercase tracking-[0.5px] mb-4">今月の作成数</h2>
+              <div className="bg-white rounded-[16px] border border-slate-200 shadow-[0_2px_8px_rgba(0,0,0,0.04)] px-6 py-6 flex items-baseline gap-2">
+                <span className="text-[36px] font-extrabold text-violet-600">{monthlyCount}</span>
+                <span className="text-[15px] font-semibold text-slate-500">件</span>
+                <span className="text-[12px] text-slate-400 ml-auto">{new Date().getMonth() + 1}月</span>
+              </div>
+            </section>
+
+            {/* 3. Record button */}
             <button
               onClick={() => setMode('voice')}
               className="w-full rounded-[16px] py-5 flex items-center justify-center gap-3 text-white font-bold text-[16px] active:scale-[0.98] transition-transform shadow-[0_4px_16px_rgba(124,58,237,0.35)]"
@@ -157,7 +167,7 @@ export default function Page() {
               今すぐ録音
             </button>
 
-            {/* 3. Recent records */}
+            {/* 4. Recent records */}
             <section>
               <h2 className="text-[13px] font-bold text-slate-400 uppercase tracking-[0.5px] mb-4">前回の続き</h2>
               {recentRecords.length === 0 ? (
@@ -189,15 +199,6 @@ export default function Page() {
               )}
             </section>
 
-            {/* 4. Monthly count */}
-            <section>
-              <h2 className="text-[13px] font-bold text-slate-400 uppercase tracking-[0.5px] mb-4">今月の作成数</h2>
-              <div className="bg-white rounded-[16px] border border-slate-200 shadow-[0_2px_8px_rgba(0,0,0,0.04)] px-6 py-6 flex items-baseline gap-2">
-                <span className="text-[36px] font-extrabold text-violet-600">{monthlyCount}</span>
-                <span className="text-[15px] font-semibold text-slate-500">件</span>
-                <span className="text-[12px] text-slate-400 ml-auto">{new Date().getMonth() + 1}月</span>
-              </div>
-            </section>
           </div>
         )}
 
