@@ -38,7 +38,7 @@ export default function Page() {
 
       {/* ===== HEADER (topbar style) ===== */}
       <header className="sticky top-0 z-50 bg-white/90 backdrop-blur-[10px] border-b border-black/5">
-        <div className="px-5 py-4 flex items-center justify-between">
+        <div className="px-6 py-5 flex items-center justify-between">
           <span className="font-extrabold text-[18px] bg-gradient-to-r from-violet-800 to-violet-500 bg-clip-text text-transparent tracking-[-0.5px]">
             Pocket Matip
           </span>
@@ -56,19 +56,19 @@ export default function Page() {
       </header>
 
       {/* ===== MAIN CONTENT ===== */}
-      <main className="flex-1 px-5 pt-5 pb-4">
+      <main className="flex-1 px-6 pt-6 pb-5">
 
         {/* ===== HOME TAB ===== */}
         {activeTab === 'home' && mode === 'idle' && (
-          <div className="space-y-6 animate-fade-in-up">
+          <div className="space-y-8 animate-fade-in-up">
 
             {/* Hero CTA */}
             <button
               onClick={() => setMode('voice')}
-              className="w-full bg-white rounded-[20px] p-6 border border-slate-200 shadow-[0_10px_25px_-5px_rgba(0,0,0,0.05),0_8px_10px_-6px_rgba(0,0,0,0.01)] hover:shadow-[0_10px_25px_-5px_rgba(124,58,237,0.12)] hover:border-violet-200 transition-all duration-200 active:scale-[0.98] group"
+              className="w-full bg-white rounded-[20px] p-7 border border-slate-200 shadow-[0_10px_25px_-5px_rgba(0,0,0,0.05),0_8px_10px_-6px_rgba(0,0,0,0.01)] hover:shadow-[0_10px_25px_-5px_rgba(124,58,237,0.12)] hover:border-violet-200 transition-all duration-200 active:scale-[0.98] group"
             >
               <div className="flex items-center gap-5">
-                <div className="w-[60px] h-[60px] rounded-[16px] bg-gradient-to-br from-violet-600 to-violet-800 flex items-center justify-center shadow-[0_4px_12px_rgba(124,58,237,0.3)] group-hover:scale-105 transition-transform flex-shrink-0">
+                <div className="w-[64px] h-[64px] rounded-[18px] bg-gradient-to-br from-violet-600 to-violet-800 flex items-center justify-center shadow-[0_6px_16px_rgba(124,58,237,0.35)] group-hover:scale-105 transition-transform flex-shrink-0">
                   <Plus className="w-7 h-7 text-white" />
                 </div>
                 <div className="text-left flex-1">
@@ -81,7 +81,7 @@ export default function Page() {
 
             {/* Recent Records Section */}
             <section>
-              <div className="flex items-center justify-between mb-4 px-1">
+              <div className="flex items-center justify-between mb-5 px-1">
                 <h2 className="text-[12px] font-bold text-slate-400 uppercase tracking-[0.5px] flex items-center gap-2">
                   <Clock className="w-3.5 h-3.5" />
                   最近の記録
@@ -93,7 +93,7 @@ export default function Page() {
                 </button>
               </div>
               <div className="bg-white rounded-[20px] border border-slate-200 shadow-[0_10px_25px_-5px_rgba(0,0,0,0.05),0_8px_10px_-6px_rgba(0,0,0,0.01)]">
-                <div className="max-h-[420px] overflow-y-auto p-2">
+                <div className="max-h-[420px] overflow-y-auto p-3">
                   <HistoryList userId={currentUser.id} userName={currentUser.name} refreshTrigger={refreshTrigger} />
                 </div>
               </div>
@@ -115,12 +115,12 @@ export default function Page() {
 
         {/* ===== HISTORY TAB ===== */}
         {activeTab === 'history' && mode === 'idle' && (
-          <div className="space-y-4 animate-fade-in-up">
+          <div className="space-y-5 animate-fade-in-up">
             <div className="px-1">
               <h2 className="text-[12px] font-bold text-slate-400 uppercase tracking-[0.5px]">全履歴</h2>
             </div>
             <div className="bg-white rounded-[20px] border border-slate-200 shadow-[0_10px_25px_-5px_rgba(0,0,0,0.05),0_8px_10px_-6px_rgba(0,0,0,0.01)] min-h-[400px]">
-              <div className="p-2">
+              <div className="p-3">
                 <HistoryList userId={currentUser.id} userName={currentUser.name} refreshTrigger={refreshTrigger} />
               </div>
             </div>
@@ -130,7 +130,7 @@ export default function Page() {
 
       {/* ===== BOTTOM NAVIGATION ===== */}
       <nav className="sticky bottom-0 z-50 bg-white border-t border-slate-200">
-        <div className="flex items-center justify-around px-4 pt-3 pb-[max(16px,env(safe-area-inset-bottom))]">
+        <div className="flex items-center justify-around px-4 pt-4 pb-[max(20px,env(safe-area-inset-bottom))]">
           <button
             onClick={() => { setActiveTab('home'); setMode('idle'); }}
             className={`flex flex-col items-center gap-1.5 py-1 w-[80px] transition-all ${activeTab === 'home' && mode === 'idle' ? 'text-violet-600 font-semibold' : 'text-slate-400'}`}
@@ -143,7 +143,7 @@ export default function Page() {
             onClick={() => setMode('voice')}
             className="relative -top-5 flex flex-col items-center"
           >
-            <div className="w-[56px] h-[56px] rounded-full bg-gradient-to-br from-violet-600 to-violet-800 flex items-center justify-center shadow-[0_4px_12px_rgba(124,58,237,0.4)] active:scale-90 transition-transform border-[3px] border-white">
+            <div className="w-[60px] h-[60px] rounded-full bg-gradient-to-br from-violet-600 to-violet-800 flex items-center justify-center shadow-[0_6px_16px_rgba(124,58,237,0.4)] active:scale-90 transition-transform border-[3px] border-white">
               <Mic className="w-6 h-6 text-white" />
             </div>
             <span className="text-[10px] font-semibold text-slate-400 mt-1.5">録音</span>

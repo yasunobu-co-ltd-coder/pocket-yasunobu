@@ -447,7 +447,7 @@ export default function VoiceRecorder({ userId, userName, onSaved, onCancel }: V
     // === Processing Screen ===
     if (isProcessing) {
         return (
-            <div className="bg-white rounded-[20px] p-10 text-center border border-slate-200 shadow-[0_10px_25px_-5px_rgba(0,0,0,0.05)]">
+            <div className="bg-white rounded-[20px] p-12 text-center border border-slate-200 shadow-[0_10px_25px_-5px_rgba(0,0,0,0.05)]">
                 <Loader2 className="w-10 h-10 text-violet-500 animate-spin mx-auto mb-5" />
                 <p className="text-slate-700 font-semibold text-[15px] mb-1">{processStep}</p>
                 {uploadedFile && (
@@ -582,7 +582,7 @@ export default function VoiceRecorder({ userId, userName, onSaved, onCancel }: V
                         <span className="text-[13px] font-semibold text-red-600">録音中</span>
                     </div>
 
-                    <div className="p-8 text-center">
+                    <div className="p-10 text-center">
                         {/* Timer */}
                         <div className="mb-8">
                             <div className="text-[48px] font-mono font-bold text-slate-800 tracking-wider">
@@ -613,7 +613,7 @@ export default function VoiceRecorder({ userId, userName, onSaved, onCancel }: V
 
                         {/* Stop button */}
                         <button onClick={stopRecording}
-                            className="w-[72px] h-[72px] rounded-full bg-red-500 shadow-[0_4px_12px_rgba(239,68,68,0.3)] flex items-center justify-center text-white hover:scale-105 active:scale-90 transition-all mx-auto">
+                            className="w-[80px] h-[80px] rounded-full bg-red-500 shadow-[0_6px_16px_rgba(239,68,68,0.35)] flex items-center justify-center text-white hover:scale-105 active:scale-90 transition-all mx-auto">
                             <Square fill="currentColor" className="w-7 h-7" />
                         </button>
                         <p className="text-[12px] text-slate-400 mt-5">タップして停止</p>
@@ -625,7 +625,7 @@ export default function VoiceRecorder({ userId, userName, onSaved, onCancel }: V
 
     // === Select Mode Screen (Default) ===
     return (
-        <div className="space-y-5 animate-fade-in-up">
+        <div className="space-y-6 animate-fade-in-up">
             {/* Back */}
             <button onClick={onCancel} className="flex items-center gap-1.5 text-[13px] text-slate-400 hover:text-slate-600 transition-colors">
                 <ArrowLeft className="w-4 h-4" />
@@ -635,15 +635,15 @@ export default function VoiceRecorder({ userId, userName, onSaved, onCancel }: V
             {/* Title */}
             <div className="px-1 mb-2">
                 <h2 className="text-[18px] font-bold text-slate-800">入力方法を選択</h2>
-                <p className="text-[13px] text-slate-400 mt-1">音声を録音するか、ファイルをアップロードしてください</p>
+                <p className="text-[13px] text-slate-400 mt-2">音声を録音するか、ファイルをアップロードしてください</p>
             </div>
 
             {/* Option cards */}
-            <div className="space-y-3">
+            <div className="space-y-4">
                 {/* Record option */}
                 <button onClick={startRecording}
-                    className="w-full bg-white border border-slate-200 rounded-[16px] p-[18px] flex items-center gap-4 hover:border-violet-200 hover:shadow-[0_4px_12px_rgba(124,58,237,0.08)] transition-all active:scale-[0.98] group shadow-[0_4px_6px_-2px_rgba(0,0,0,0.03)]">
-                    <div className="w-14 h-14 rounded-[14px] bg-gradient-to-br from-violet-600 to-violet-800 flex items-center justify-center shadow-[0_4px_12px_rgba(124,58,237,0.3)] flex-shrink-0 group-hover:scale-105 transition-transform">
+                    className="w-full bg-white border border-slate-200 rounded-[18px] p-5 flex items-center gap-5 hover:border-violet-200 hover:shadow-[0_6px_16px_rgba(124,58,237,0.1)] transition-all active:scale-[0.98] group shadow-[0_4px_6px_-2px_rgba(0,0,0,0.03)]">
+                    <div className="w-16 h-16 rounded-[16px] bg-gradient-to-br from-violet-600 to-violet-800 flex items-center justify-center shadow-[0_6px_16px_rgba(124,58,237,0.3)] flex-shrink-0 group-hover:scale-105 transition-transform">
                         <Mic className="w-6 h-6 text-white" />
                     </div>
                     <div className="flex-1 text-left">
@@ -655,8 +655,8 @@ export default function VoiceRecorder({ userId, userName, onSaved, onCancel }: V
 
                 {/* Upload option */}
                 <button onClick={() => audioFileInputRef.current?.click()}
-                    className="w-full bg-white border border-slate-200 rounded-[16px] p-[18px] flex items-center gap-4 hover:border-violet-200 hover:shadow-[0_4px_12px_rgba(124,58,237,0.08)] transition-all active:scale-[0.98] group shadow-[0_4px_6px_-2px_rgba(0,0,0,0.03)]">
-                    <div className="w-14 h-14 rounded-[14px] bg-gradient-to-br from-violet-500 to-purple-700 flex items-center justify-center shadow-[0_4px_12px_rgba(124,58,237,0.3)] flex-shrink-0 group-hover:scale-105 transition-transform">
+                    className="w-full bg-white border border-slate-200 rounded-[18px] p-5 flex items-center gap-5 hover:border-violet-200 hover:shadow-[0_6px_16px_rgba(124,58,237,0.1)] transition-all active:scale-[0.98] group shadow-[0_4px_6px_-2px_rgba(0,0,0,0.03)]">
+                    <div className="w-16 h-16 rounded-[16px] bg-gradient-to-br from-violet-500 to-purple-700 flex items-center justify-center shadow-[0_6px_16px_rgba(124,58,237,0.3)] flex-shrink-0 group-hover:scale-105 transition-transform">
                         <Upload className="w-6 h-6 text-white" />
                     </div>
                     <div className="flex-1 text-left">

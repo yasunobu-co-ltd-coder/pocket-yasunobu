@@ -41,23 +41,22 @@ export default function UserSelect({ onSelect }: UserSelectProps) {
     useEffect(() => { fetchUsers(); }, []);
 
     return (
-        <div className="min-h-screen flex flex-col items-center justify-center px-10 py-16"
+        <div className="min-h-screen flex flex-col items-center justify-center px-8 py-20"
             style={{ background: 'linear-gradient(135deg, #f5f3ff 0%, #ede9fe 100%)' }}>
 
             {/* Brand */}
-            <div className="mb-10 text-center animate-fade-in-up">
-                <div className="w-16 h-16 bg-gradient-to-br from-violet-600 to-violet-800 rounded-[18px] flex items-center justify-center mx-auto mb-5 shadow-[0_4px_12px_rgba(124,58,237,0.3)]">
-                    <Mic className="w-7 h-7 text-white" />
+            <div className="mb-12 text-center animate-fade-in-up">
+                <div className="w-20 h-20 bg-gradient-to-br from-violet-600 to-violet-800 rounded-[22px] flex items-center justify-center mx-auto mb-6 shadow-[0_8px_20px_rgba(124,58,237,0.35)]">
+                    <Mic className="w-9 h-9 text-white" />
                 </div>
-                <h1 className="font-extrabold text-[22px] bg-gradient-to-r from-violet-800 to-violet-500 bg-clip-text text-transparent tracking-[-0.5px] mb-1">
+                <h1 className="font-extrabold text-[26px] bg-gradient-to-r from-violet-800 to-violet-500 bg-clip-text text-transparent tracking-[-0.5px] mb-2">
                     Pocket Matip
                 </h1>
                 <p className="text-slate-400 text-[13px]">AI議事録アシスタント</p>
             </div>
 
             {/* Card */}
-            <div className="w-full max-w-[340px] bg-white/90 backdrop-blur-[10px] rounded-[24px] p-8 shadow-[0_20px_40px_-10px_rgba(124,58,237,0.15)] border border-white/60">
-                <p className="text-[12px] font-bold text-slate-400 uppercase tracking-[0.5px] mb-5 text-center">ユーザーを選択</p>
+            <div className="w-full max-w-[360px] bg-white/90 backdrop-blur-[10px] rounded-[24px] p-8 shadow-[0_20px_40px_-10px_rgba(124,58,237,0.15)] border border-white/60">
 
                 {loading && (
                     <div className="flex flex-col items-center justify-center py-10 gap-3">
@@ -85,17 +84,17 @@ export default function UserSelect({ onSelect }: UserSelectProps) {
                 )}
 
                 {!loading && !error && users.length > 0 && (
-                    <div className="grid grid-cols-2 gap-3">
+                    <div className="grid grid-cols-2 gap-4">
                         {users.map((user) => (
                             <button
                                 key={user.id}
                                 onClick={() => onSelect(user)}
-                                className="rounded-[14px] py-4 px-3 flex flex-col items-center gap-2 bg-slate-50 hover:bg-violet-50 border border-slate-200 hover:border-violet-300 transition-all duration-150 active:scale-[0.97] group"
+                                className="rounded-[16px] py-5 px-4 flex flex-col items-center gap-3 bg-slate-50 hover:bg-violet-50 border border-slate-200 hover:border-violet-300 hover:shadow-[0_4px_16px_rgba(124,58,237,0.12)] transition-all duration-200 active:scale-[0.96] group"
                             >
-                                <div className="w-10 h-10 rounded-full bg-gradient-to-br from-violet-500 to-violet-700 flex items-center justify-center shadow-sm">
-                                    <span className="text-[14px] font-bold text-white">{user.name.charAt(0)}</span>
+                                <div className="w-14 h-14 rounded-full bg-gradient-to-br from-violet-500 to-violet-700 flex items-center justify-center shadow-[0_4px_10px_rgba(124,58,237,0.25)]">
+                                    <span className="text-[18px] font-bold text-white">{user.name.charAt(0)}</span>
                                 </div>
-                                <span className="text-[13px] font-semibold text-slate-700 group-hover:text-violet-700">{user.name}</span>
+                                <span className="text-[15px] font-bold text-slate-700 group-hover:text-violet-700">{user.name}</span>
                             </button>
                         ))}
                     </div>

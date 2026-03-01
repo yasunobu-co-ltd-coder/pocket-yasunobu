@@ -165,12 +165,12 @@ export default function HistoryList({ userId, userName, refreshTrigger }: Histor
     return (
         <>
             {/* Filter buttons */}
-            <div className="flex gap-2 px-2 pt-2 pb-3">
+            <div className="flex gap-3 px-3 pt-3 pb-4">
                 {(['全件', '自分の作成'] as Filter[]).map(f => (
                     <button
                         key={f}
                         onClick={() => setFilter(f)}
-                        className="transition-all text-[13px] font-semibold px-3.5 py-1.5 rounded-full"
+                        className="transition-all text-[13px] font-semibold px-4 py-2 rounded-full hover:shadow-[0_2px_8px_rgba(124,58,237,0.15)]"
                         style={{
                             background: filter === f ? '#7c3aed' : '#fff',
                             color: filter === f ? '#fff' : '#64748b',
@@ -187,9 +187,9 @@ export default function HistoryList({ userId, userName, refreshTrigger }: Histor
                 {filtered.map((record) => (
                     <div key={record.id}
                         onClick={() => setSelectedRecord(record)}
-                        className="rounded-[16px] px-[18px] py-[18px] mb-1 border border-transparent hover:border-slate-100 hover:bg-slate-50/50 transition-all duration-150 cursor-pointer active:scale-[0.99]">
-                        <div className="flex items-start gap-3.5">
-                            <div className="w-10 h-10 rounded-[10px] bg-violet-50 flex items-center justify-center flex-shrink-0 mt-0.5 border border-violet-100">
+                        className="rounded-[16px] px-5 py-5 mb-2 border border-transparent hover:border-violet-100 hover:bg-violet-50/30 transition-all duration-150 cursor-pointer active:scale-[0.99]">
+                        <div className="flex items-start gap-4">
+                            <div className="w-11 h-11 rounded-[12px] bg-violet-50 flex items-center justify-center flex-shrink-0 mt-0.5 border border-violet-100">
                                 <FileText className="w-[18px] h-[18px] text-violet-500" />
                             </div>
                             <div className="flex-1 min-w-0">
@@ -201,7 +201,7 @@ export default function HistoryList({ userId, userName, refreshTrigger }: Histor
                                 </div>
                                 <p className="text-[13px] text-slate-500 line-clamp-2 leading-[1.6]">{record.summary}</p>
                                 {/* Creator & timestamp */}
-                                <div className="flex items-center justify-between mt-2 pt-2 border-t border-slate-100">
+                                <div className="flex items-center justify-between mt-3 pt-3 border-t border-slate-100">
                                     <span className="flex items-center gap-1.5 text-[11px] text-slate-400">
                                         <span className="w-[6px] h-[6px] rounded-full" style={{ background: record.user_id === userId ? '#7c3aed' : '#cbd5e1' }} />
                                         {record.user_name}
@@ -277,7 +277,7 @@ export default function HistoryList({ userId, userName, refreshTrigger }: Histor
                                     {/* Creator */}
                                     <div className="flex items-center gap-2">
                                         <User className="w-3.5 h-3.5 text-slate-400" />
-                                        <span className="text-[13px] text-slate-500">作成者: {selectedRecord.user_name}</span>
+                                        <span className="text-[13px] text-slate-500">{selectedRecord.user_name}</span>
                                     </div>
 
                                     {/* Summary */}
@@ -288,7 +288,7 @@ export default function HistoryList({ userId, userName, refreshTrigger }: Histor
 
                                     {/* Edit button */}
                                     <button onClick={() => startEdit(selectedRecord)}
-                                        className="w-full bg-slate-100 text-slate-600 font-semibold py-3.5 rounded-[12px] text-[14px] hover:bg-slate-200 transition-colors">
+                                        className="w-full bg-slate-100 text-slate-600 font-semibold py-4 rounded-[14px] text-[14px] hover:bg-violet-50 hover:text-violet-600 transition-all active:scale-[0.97]">
                                         編集する
                                     </button>
                                 </>
