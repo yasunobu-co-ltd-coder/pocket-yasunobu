@@ -89,11 +89,8 @@ export default function UserSelect({ onSelect }: UserSelectProps) {
                             <button
                                 key={user.id}
                                 onClick={() => onSelect(user)}
-                                className="rounded-[16px] py-5 px-4 flex flex-col items-center gap-3 bg-slate-50 hover:bg-violet-50 border border-slate-200 hover:border-violet-300 hover:shadow-[0_4px_16px_rgba(124,58,237,0.12)] transition-all duration-200 active:scale-[0.96] group"
+                                className="rounded-[16px] py-5 px-4 flex items-center justify-center bg-slate-50 hover:bg-violet-50 border border-slate-200 hover:border-violet-300 hover:shadow-[0_4px_16px_rgba(124,58,237,0.12)] transition-all duration-200 active:scale-[0.96] group"
                             >
-                                <div className="w-14 h-14 rounded-full bg-gradient-to-br from-violet-500 to-violet-700 flex items-center justify-center shadow-[0_4px_10px_rgba(124,58,237,0.25)]">
-                                    <span className="text-[18px] font-bold text-white">{user.name.charAt(0)}</span>
-                                </div>
                                 <span className="text-[15px] font-bold text-slate-700 group-hover:text-violet-700">{user.name}</span>
                             </button>
                         ))}
