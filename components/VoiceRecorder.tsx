@@ -1,11 +1,12 @@
 'use client';
 
 import { useState, useRef, useEffect } from 'react';
-import { Mic, Square, Save, Loader2, Check, Upload, FileAudio, X } from 'lucide-react';
-import { getSupabaseClient, SupabaseConfig } from '@/lib/supabase';
+import { Mic, Square, Save, Loader2, Check, Upload, FileAudio } from 'lucide-react';
+import { supabase } from '@/lib/supabase';
 
 interface VoiceRecorderProps {
-    config: SupabaseConfig | null;
+    userId: number;
+    userName: string;
     onSaved: () => void;
     onCancel: () => void;
 }
@@ -69,10 +70,9 @@ declare global {
 
 type InputMode = 'select' | 'recording' | 'uploading';
 
-export default function VoiceRecorder({ config, onSaved, onCancel }: VoiceRecorderProps) {
+export default function VoiceRecorder({ userId, userName, onSaved, onCancel }: VoiceRecorderProps) {
     const VERSION = "v8.0";
 
-    // Input mode
     const [inputMode, setInputMode] = useState<InputMode>('select');
 
     // Recording State
@@ -106,7 +106,6 @@ export default function VoiceRecorder({ config, onSaved, onCancel }: VoiceRecord
     // Form State
     const [customer, setCustomer] = useState('');
 
-    // Cleanup on unmount
     useEffect(() => {
         return () => {
             if (timerInterval.current) clearInterval(timerInterval.current);
@@ -140,32 +139,25 @@ export default function VoiceRecorder({ config, onSaved, onCancel }: VoiceRecord
         return `${String(mins).padStart(2, '0')}:${String(secs).padStart(2, '0')}`;
     };
 
-    // 音声レベルを測定
     const startAudioLevelMonitoring = (stream: MediaStream) => {
         const audioContext = new AudioContext();
         const analyser = audioContext.createAnalyser();
         const microphone = audioContext.createMediaStreamSource(stream);
-
         analyser.fftSize = 256;
         const bufferLength = analyser.frequencyBinCount;
         const dataArray = new Uint8Array(bufferLength);
-
         microphone.connect(analyser);
-
         audioContextRef.current = audioContext;
         analyserRef.current = analyser;
 
         const updateLevel = () => {
             if (!analyserRef.current) return;
-
             analyserRef.current.getByteFrequencyData(dataArray);
             const average = dataArray.reduce((a, b) => a + b, 0) / bufferLength;
             const level = Math.min(100, (average / 255) * 200);
-
             setAudioLevel(level);
             animationFrameRef.current = requestAnimationFrame(updateLevel);
         };
-
         updateLevel();
     };
 
@@ -181,7 +173,6 @@ export default function VoiceRecorder({ config, onSaved, onCancel }: VoiceRecord
         setAudioLevel(0);
     };
 
-    // Web Speech API で音声認識を開始
     const startSpeechRecognition = () => {
         const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
         if (!SpeechRecognition) {
@@ -196,7 +187,6 @@ export default function VoiceRecorder({ config, onSaved, onCancel }: VoiceRecord
 
         recognition.onresult = (event: SpeechRecognitionEvent) => {
             let interimTranscript = '';
-
             for (let i = event.resultIndex; i < event.results.length; i++) {
                 const result = event.results[i];
                 if (result.isFinal) {
@@ -205,24 +195,16 @@ export default function VoiceRecorder({ config, onSaved, onCancel }: VoiceRecord
                     interimTranscript += result[0].transcript;
                 }
             }
-
             setLiveTranscript(finalTranscriptRef.current + interimTranscript);
         };
 
         recognition.onerror = (event) => {
             console.error('Speech recognition error:', event);
-            if ((event as ErrorEvent & { error: string }).error !== 'no-speech') {
-                console.log('Recognition error, restarting...');
-            }
         };
 
         recognition.onend = () => {
             if (isRecording && recognitionRef.current) {
-                try {
-                    recognitionRef.current.start();
-                } catch (e) {
-                    console.log('Recognition restart failed:', e);
-                }
+                try { recognitionRef.current.start(); } catch (e) { console.log('Restart failed:', e); }
             }
         };
 
@@ -243,19 +225,16 @@ export default function VoiceRecorder({ config, onSaved, onCancel }: VoiceRecord
         try {
             const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
             streamRef.current = stream;
-
             if (!startSpeechRecognition()) {
                 stream.getTracks().forEach(t => t.stop());
                 return;
             }
-
             finalTranscriptRef.current = '';
             setLiveTranscript('');
             setIsRecording(true);
             setInputMode('recording');
             startTimer();
             startAudioLevelMonitoring(stream);
-
         } catch (err) {
             alert('マイクへのアクセスが拒否されました');
             console.error(err);
@@ -267,12 +246,10 @@ export default function VoiceRecorder({ config, onSaved, onCancel }: VoiceRecord
         stopTimer();
         stopAudioLevelMonitoring();
         stopSpeechRecognition();
-
         if (streamRef.current) {
             streamRef.current.getTracks().forEach(t => t.stop());
             streamRef.current = null;
         }
-
         const transcript = finalTranscriptRef.current.trim() || liveTranscript.trim();
         if (transcript) {
             setEditableTranscript(transcript);
@@ -288,16 +265,12 @@ export default function VoiceRecorder({ config, onSaved, onCancel }: VoiceRecord
         const file = e.target.files?.[0];
         if (!file) return;
 
-        const allowedTypes = ['audio/mpeg', 'audio/mp4', 'audio/x-m4a', 'audio/wav', 'audio/wave', 'audio/webm'];
         const allowedExtensions = ['.mp3', '.m4a', '.wav', '.webm'];
         const ext = '.' + file.name.split('.').pop()?.toLowerCase();
-
-        if (!allowedTypes.includes(file.type) && !allowedExtensions.includes(ext)) {
+        if (!allowedExtensions.includes(ext)) {
             alert('対応していないファイル形式です。\nmp3, m4a, wav ファイルをお選びください。');
             return;
         }
-
-        // 25MB制限
         if (file.size > 25 * 1024 * 1024) {
             alert(`ファイルサイズが大きすぎます（${(file.size / 1024 / 1024).toFixed(1)}MB）。\n25MB以下のファイルをお選びください。`);
             return;
@@ -324,7 +297,6 @@ export default function VoiceRecorder({ config, onSaved, onCancel }: VoiceRecord
             }
 
             const data = await resp.json();
-
             if (data.text && data.text.trim()) {
                 setEditableTranscript(data.text.trim());
                 setShowTranscript(true);
@@ -342,13 +314,12 @@ export default function VoiceRecorder({ config, onSaved, onCancel }: VoiceRecord
         }
     };
 
-    // 文字起こしから議事録を生成
+    // 議事録生成
     const generateMinutes = async () => {
         if (!editableTranscript.trim()) {
             alert('文字起こしテキストがありません');
             return;
         }
-
         setIsProcessing(true);
         setProcessStep('議事録を生成中...');
 
@@ -356,10 +327,7 @@ export default function VoiceRecorder({ config, onSaved, onCancel }: VoiceRecord
             const resp = await fetch("/api/generate-minutes", {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({
-                    transcript: editableTranscript,
-                    chunkCount: 1
-                })
+                body: JSON.stringify({ transcript: editableTranscript, chunkCount: 1 })
             });
 
             if (!resp.ok) {
@@ -368,24 +336,16 @@ export default function VoiceRecorder({ config, onSaved, onCancel }: VoiceRecord
             }
 
             const data = await resp.json();
-
             let minutes: MinutesData = data.result;
             if (!minutes || (!minutes.summary && !minutes.customer)) {
                 minutes = {
-                    customer: '',
-                    project: '',
-                    summary: editableTranscript,
-                    decisions: [],
-                    todos: [],
-                    nextSchedule: '',
-                    keywords: []
+                    customer: '', project: '', summary: editableTranscript,
+                    decisions: [], todos: [], nextSchedule: '', keywords: []
                 };
             }
-
             setResult(minutes);
             setCustomer(minutes.customer || '');
             setShowTranscript(false);
-
         } catch (e: unknown) {
             console.error(e);
             const msg = e instanceof Error ? e.message : 'Unknown error';
@@ -395,17 +355,11 @@ export default function VoiceRecorder({ config, onSaved, onCancel }: VoiceRecord
         }
     };
 
-    // 保存
+    // pocket-matip テーブルに保存
     const saveMinutes = async () => {
-        if (!config) {
-            alert("設定からSupabase情報を登録してください");
-            return;
-        }
         if (!result) return;
 
         try {
-            const supabase = getSupabaseClient(config.url, config.key);
-
             let formattedMemo = result.summary;
             if (result.decisions && result.decisions.length > 0) {
                 formattedMemo += '\n\n【決定事項】\n' + result.decisions.map(d => `・${d}`).join('\n');
@@ -418,18 +372,17 @@ export default function VoiceRecorder({ config, onSaved, onCancel }: VoiceRecord
             }
 
             const { error } = await supabase
-                .from('deals')
+                .from('pocket-matip')
                 .insert({
-                    created_by: 'Pocket Matip',
+                    user_id: userId,
+                    user_name: userName,
                     client_name: customer || result.customer || '名称なし',
-                    memo: formattedMemo,
-                    due_date: new Date().toISOString().split('T')[0],
-                    importance: '中',
-                    profit: '中',
-                    urgency: '中',
-                    assignment_type: '自分で',
-                    assignee: 'Pocket Matip',
-                    status: 'open',
+                    transcript: editableTranscript,
+                    summary: formattedMemo,
+                    decisions: result.decisions || [],
+                    todos: result.todos || [],
+                    next_schedule: result.nextSchedule || '',
+                    keywords: result.keywords || [],
                 });
 
             if (error) {
@@ -479,29 +432,22 @@ export default function VoiceRecorder({ config, onSaved, onCancel }: VoiceRecord
                         <Check className="w-5 h-5" />
                         文字起こし完了
                     </div>
-
                     <p className="text-xs text-slate-400">
                         内容を確認・編集してから「議事録にまとめる」をタップしてください
                     </p>
-
                     <textarea
                         value={editableTranscript}
                         onChange={(e) => setEditableTranscript(e.target.value)}
                         className="w-full h-64 bg-black/50 border border-violet-500/20 rounded-xl p-4 text-sm text-slate-200 focus:border-violet-500 outline-none resize-none placeholder-slate-600"
                         placeholder="文字起こし結果..."
                     />
-
                     <div className="flex gap-3">
-                        <button
-                            onClick={resetAll}
-                            className="flex-1 bg-black/30 border border-violet-500/20 text-slate-300 font-bold py-3 rounded-xl hover:bg-violet-500/10 transition-colors"
-                        >
+                        <button onClick={resetAll}
+                            className="flex-1 bg-black/30 border border-violet-500/20 text-slate-300 font-bold py-3 rounded-xl hover:bg-violet-500/10 transition-colors">
                             やり直す
                         </button>
-                        <button
-                            onClick={generateMinutes}
-                            className="flex-[2] bg-gradient-to-r from-violet-600 to-purple-600 text-white font-bold py-3 rounded-xl shadow-lg shadow-violet-500/20 hover:scale-[1.02] transition-transform"
-                        >
+                        <button onClick={generateMinutes}
+                            className="flex-[2] bg-gradient-to-r from-violet-600 to-purple-600 text-white font-bold py-3 rounded-xl shadow-lg shadow-violet-500/20 hover:scale-[1.02] transition-transform">
                             議事録にまとめる
                         </button>
                     </div>
@@ -519,17 +465,11 @@ export default function VoiceRecorder({ config, onSaved, onCancel }: VoiceRecord
                         <Check className="w-5 h-5" />
                         議事録生成完了
                     </div>
-
                     <div>
                         <label className="block text-xs font-medium text-slate-400 mb-1">顧客名</label>
-                        <input
-                            type="text"
-                            value={customer}
-                            onChange={(e) => setCustomer(e.target.value)}
-                            className="w-full bg-black/50 border border-violet-500/20 rounded-xl px-4 py-2 text-sm text-white focus:border-violet-500 outline-none"
-                        />
+                        <input type="text" value={customer} onChange={(e) => setCustomer(e.target.value)}
+                            className="w-full bg-black/50 border border-violet-500/20 rounded-xl px-4 py-2 text-sm text-white focus:border-violet-500 outline-none" />
                     </div>
-
                     <div className="space-y-4 bg-black/30 p-4 rounded-xl border border-violet-500/10 text-sm">
                         <div>
                             <h4 className="text-violet-400 font-bold mb-1">要約</h4>
@@ -558,18 +498,13 @@ export default function VoiceRecorder({ config, onSaved, onCancel }: VoiceRecord
                             </div>
                         )}
                     </div>
-
                     <div className="flex gap-3 pt-2">
-                        <button
-                            onClick={resetAll}
-                            className="flex-1 bg-black/30 border border-violet-500/20 text-slate-300 font-bold py-3 rounded-xl hover:bg-violet-500/10 transition-colors"
-                        >
+                        <button onClick={resetAll}
+                            className="flex-1 bg-black/30 border border-violet-500/20 text-slate-300 font-bold py-3 rounded-xl hover:bg-violet-500/10 transition-colors">
                             やり直す
                         </button>
-                        <button
-                            onClick={saveMinutes}
-                            className="flex-[2] bg-gradient-to-r from-violet-600 to-purple-600 text-white font-bold py-3 rounded-xl shadow-lg shadow-violet-500/20 hover:scale-[1.02] transition-transform flex items-center justify-center gap-2"
-                        >
+                        <button onClick={saveMinutes}
+                            className="flex-[2] bg-gradient-to-r from-violet-600 to-purple-600 text-white font-bold py-3 rounded-xl shadow-lg shadow-violet-500/20 hover:scale-[1.02] transition-transform flex items-center justify-center gap-2">
                             <Save className="w-5 h-5" />
                             保存する
                         </button>
@@ -584,66 +519,43 @@ export default function VoiceRecorder({ config, onSaved, onCancel }: VoiceRecord
         return (
             <div className="bg-[#0f0a1a] rounded-2xl p-8 border border-violet-500/20 text-center relative overflow-hidden shadow-[0_0_40px_rgba(139,92,246,0.1)]">
                 <div className="absolute top-2 right-2 text-[10px] text-violet-500/40 font-mono">{VERSION}</div>
-
                 <div className="mb-6">
                     <div className="text-5xl font-mono font-bold text-transparent bg-clip-text bg-gradient-to-r from-violet-400 to-purple-400">
                         {formatTime(timer)}
                     </div>
                     <p className="text-sm text-violet-300/60 mt-2">録音中...</p>
                 </div>
-
-                {/* リアルタイム文字起こし表示 */}
                 {liveTranscript && (
                     <div className="mb-6 p-3 bg-black/40 rounded-xl border border-violet-500/10 max-h-32 overflow-y-auto">
-                        <p className="text-xs text-slate-400 text-left whitespace-pre-wrap">
-                            {liveTranscript}
-                        </p>
+                        <p className="text-xs text-slate-400 text-left whitespace-pre-wrap">{liveTranscript}</p>
                     </div>
                 )}
-
-                {/* Waveform */}
                 <div className="space-y-2 mb-8">
                     <div className="flex items-center justify-center gap-1 h-16">
                         {[...Array(15)].map((_, i) => {
                             const offset = Math.abs(7 - i) / 7;
                             const baseHeight = 4 + (1 - offset) * audioLevel * 0.5;
                             return (
-                                <div
-                                    key={i}
-                                    className="w-1 bg-violet-500 rounded-full transition-all duration-100"
-                                    style={{
-                                        height: `${Math.max(4, baseHeight)}px`,
-                                        opacity: 0.3 + (audioLevel / 100) * 0.7
-                                    }}
-                                />
+                                <div key={i} className="w-1 bg-violet-500 rounded-full transition-all duration-100"
+                                    style={{ height: `${Math.max(4, baseHeight)}px`, opacity: 0.3 + (audioLevel / 100) * 0.7 }} />
                             );
                         })}
                     </div>
                     <div className="flex items-center justify-center gap-2">
                         <div className="w-32 h-2 bg-black/40 rounded-full overflow-hidden">
-                            <div
-                                className="h-full bg-gradient-to-r from-violet-500 to-purple-500 transition-all duration-100"
-                                style={{ width: `${audioLevel}%` }}
-                            />
+                            <div className="h-full bg-gradient-to-r from-violet-500 to-purple-500 transition-all duration-100"
+                                style={{ width: `${audioLevel}%` }} />
                         </div>
-                        <span className="text-xs text-violet-300/40 font-mono w-8">
-                            {Math.round(audioLevel)}
-                        </span>
+                        <span className="text-xs text-violet-300/40 font-mono w-8">{Math.round(audioLevel)}</span>
                     </div>
                 </div>
-
                 <div className="flex justify-center">
-                    <button
-                        onClick={stopRecording}
-                        className="w-20 h-20 rounded-full bg-gradient-to-r from-red-500 to-rose-600 shadow-lg shadow-red-500/30 flex items-center justify-center text-white hover:scale-105 active:scale-95 transition-all animate-pulse"
-                    >
+                    <button onClick={stopRecording}
+                        className="w-20 h-20 rounded-full bg-gradient-to-r from-red-500 to-rose-600 shadow-lg shadow-red-500/30 flex items-center justify-center text-white hover:scale-105 active:scale-95 transition-all animate-pulse">
                         <Square fill="currentColor" className="w-8 h-8" />
                     </button>
                 </div>
-
-                <p className="text-xs text-violet-300/40 mt-6">
-                    タップして停止
-                </p>
+                <p className="text-xs text-violet-300/40 mt-6">タップして停止</p>
             </div>
         );
     }
@@ -652,23 +564,16 @@ export default function VoiceRecorder({ config, onSaved, onCancel }: VoiceRecord
     return (
         <div className="bg-[#0f0a1a] rounded-2xl p-8 border border-violet-500/20 text-center relative overflow-hidden shadow-[0_0_40px_rgba(139,92,246,0.1)]">
             <div className="absolute top-2 right-2 text-[10px] text-violet-500/40 font-mono">{VERSION}</div>
-
-            {/* Decorative glow */}
             <div className="absolute -top-20 left-1/2 -translate-x-1/2 w-60 h-60 bg-violet-600/10 rounded-full blur-3xl" />
-
             <h2 className="text-xl font-bold flex items-center justify-center gap-2 mb-8 relative z-10">
                 <span className="w-10 h-10 rounded-full bg-violet-500/20 flex items-center justify-center text-violet-400">
                     <Mic className="w-6 h-6" />
                 </span>
                 音声から議事録を作成
             </h2>
-
             <div className="grid grid-cols-2 gap-4 mb-6 relative z-10">
-                {/* 録音ボタン */}
-                <button
-                    onClick={startRecording}
-                    className="bg-black/30 border border-violet-500/20 rounded-2xl p-6 flex flex-col items-center gap-3 hover:border-violet-500/50 hover:bg-violet-500/10 transition-all active:scale-95 group"
-                >
+                <button onClick={startRecording}
+                    className="bg-black/30 border border-violet-500/20 rounded-2xl p-6 flex flex-col items-center gap-3 hover:border-violet-500/50 hover:bg-violet-500/10 transition-all active:scale-95 group">
                     <div className="w-16 h-16 rounded-full bg-gradient-to-br from-violet-500 to-purple-600 flex items-center justify-center shadow-lg shadow-violet-500/30 group-hover:scale-110 transition-transform">
                         <Mic className="w-8 h-8 text-white" />
                     </div>
@@ -677,12 +582,8 @@ export default function VoiceRecorder({ config, onSaved, onCancel }: VoiceRecord
                         <div className="text-[10px] text-violet-300/50 mt-1">リアルタイム文字起こし</div>
                     </div>
                 </button>
-
-                {/* アップロードボタン */}
-                <button
-                    onClick={() => audioFileInputRef.current?.click()}
-                    className="bg-black/30 border border-violet-500/20 rounded-2xl p-6 flex flex-col items-center gap-3 hover:border-violet-500/50 hover:bg-violet-500/10 transition-all active:scale-95 group"
-                >
+                <button onClick={() => audioFileInputRef.current?.click()}
+                    className="bg-black/30 border border-violet-500/20 rounded-2xl p-6 flex flex-col items-center gap-3 hover:border-violet-500/50 hover:bg-violet-500/10 transition-all active:scale-95 group">
                     <div className="w-16 h-16 rounded-full bg-gradient-to-br from-purple-500 to-fuchsia-600 flex items-center justify-center shadow-lg shadow-purple-500/30 group-hover:scale-110 transition-transform">
                         <Upload className="w-8 h-8 text-white" />
                     </div>
@@ -692,20 +593,11 @@ export default function VoiceRecorder({ config, onSaved, onCancel }: VoiceRecord
                     </div>
                 </button>
             </div>
-
-            <input
-                type="file"
-                ref={audioFileInputRef}
-                accept=".mp3,.m4a,.wav,.webm,audio/*"
-                hidden
-                onChange={handleAudioFileSelect}
-            />
-
+            <input type="file" ref={audioFileInputRef} accept=".mp3,.m4a,.wav,.webm,audio/*" hidden onChange={handleAudioFileSelect} />
             <p className="text-xs text-violet-300/40 mb-6 relative z-10">
                 <FileAudio className="w-3 h-3 inline mr-1" />
                 対応形式: mp3, m4a, wav
             </p>
-
             <div className="border-t border-violet-500/10 pt-4 relative z-10">
                 <button onClick={onCancel} className="text-sm text-slate-500 hover:text-violet-300 transition-colors">
                     キャンセルして戻る
