@@ -1,0 +1,17 @@
+{
+  "name": "Pocket Matip",
+  "short_name": "Pocket Matip",
+  "description": "AI議事録アシスタント",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#f8fafc",
+  "theme_color": "#7c3aed",
+  "icons": [
+    {
+      "src": "/favicon.png",
+      "sizes": "any",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ]
+}

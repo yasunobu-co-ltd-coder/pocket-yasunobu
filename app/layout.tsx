@@ -32,7 +32,7 @@ export default function RootLayout({
           href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap"
           rel="stylesheet"
         />
-        <link rel="apple-touch-icon" href="/icons/icon-192.png" />
+        <link rel="apple-touch-icon" href="/favicon.png" />
       </head>
       <body className="max-w-[600px] mx-auto min-h-screen relative">{children}</body>
     </html>
