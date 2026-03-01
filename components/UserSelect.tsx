@@ -114,9 +114,12 @@ export default function UserSelect({ onSelect }: UserSelectProps) {
                 <div className="w-20 h-20 bg-gradient-to-br from-violet-600 to-violet-800 rounded-[22px] flex items-center justify-center mx-auto mb-6 shadow-[0_8px_20px_rgba(124,58,237,0.35)]">
                     <Mic className="w-9 h-9 text-white" />
                 </div>
-                <h1 className="font-extrabold text-[26px] bg-gradient-to-r from-violet-800 to-violet-500 bg-clip-text text-transparent tracking-[-0.5px] mb-2">
-                    Pocket Matip
-                </h1>
+                <div className="flex items-center justify-center gap-3 mb-2">
+                    <h1 className="font-extrabold text-[26px] bg-gradient-to-r from-violet-800 to-violet-500 bg-clip-text text-transparent tracking-[-0.5px]">
+                        Pocket Matip
+                    </h1>
+                    <span className="text-[11px] text-slate-400 font-mono">v1.12.5</span>
+                </div>
                 <p className="text-slate-400 text-[13px]">AI議事録アシスタント</p>
             </div>
 
@@ -218,7 +221,6 @@ export default function UserSelect({ onSelect }: UserSelectProps) {
                 )}
             </div>
 
-            <p className="text-[10px] text-slate-300 font-mono mt-10">v9.0</p>
         </div>
     );
 }
