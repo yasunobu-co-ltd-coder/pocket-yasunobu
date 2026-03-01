@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { Clock, Mic, LogOut, ChevronRight, Home, List, Plus } from 'lucide-react';
+import { Mic, LogOut, Home, List, Plus } from 'lucide-react';
 import UserSelect, { UserData } from '@/components/UserSelect';
 import HistoryList from '@/components/HistoryList';
 import VoiceRecorder from '@/components/VoiceRecorder';
@@ -34,70 +34,55 @@ export default function Page() {
   }
 
   return (
-    <div className="min-h-screen flex flex-col font-sans">
+    <div className="min-h-screen flex flex-col font-sans bg-slate-50/50">
 
       {/* ===== HEADER ===== */}
       <header className="sticky top-0 z-50 bg-white/90 backdrop-blur-[10px] border-b border-black/5">
-        <div className="px-6 py-5 flex items-center justify-between">
-          <span className="font-extrabold text-[20px] bg-gradient-to-r from-violet-800 to-violet-500 bg-clip-text text-transparent tracking-[-0.5px]">
+        <div className="px-6 py-4 flex items-center justify-between">
+          <span className="font-extrabold text-[17px] bg-gradient-to-r from-violet-800 to-violet-500 bg-clip-text text-transparent tracking-[-0.5px]">
             Pocket Matip
           </span>
           <div className="flex items-center gap-3">
             <div className="bg-slate-100 rounded-full px-4 py-2">
-              <span className="text-[14px] font-semibold text-slate-600">{currentUser.name}</span>
+              <span className="text-[13px] font-semibold text-slate-600">{currentUser.name}</span>
             </div>
             <button onClick={handleLogout}
               className="text-slate-400 hover:text-slate-600 transition-colors p-2 rounded-lg hover:bg-slate-50"
               title="ユーザー切替">
-              <LogOut className="w-[18px] h-[18px]" />
+              <LogOut className="w-[16px] h-[16px]" />
             </button>
           </div>
         </div>
       </header>
 
       {/* ===== MAIN CONTENT ===== */}
-      <main className="flex-1 px-7 pt-10 pb-10">
+      <main className="flex-1 px-5 pt-8 pb-10">
 
         {/* ===== HOME TAB ===== */}
         {activeTab === 'home' && mode === 'idle' && (
-          <div className="space-y-12 animate-fade-in-up">
+          <div className="animate-fade-in-up">
 
-            {/* Hero CTA */}
+            {/* CTA Button */}
             <button
               onClick={() => setMode('voice')}
-              className="w-full bg-white rounded-[20px] border border-slate-200 shadow-[0_10px_25px_-5px_rgba(0,0,0,0.05),0_8px_10px_-6px_rgba(0,0,0,0.01)] hover:shadow-[0_10px_25px_-5px_rgba(124,58,237,0.15)] hover:border-violet-200 transition-all duration-200 active:scale-[0.98] group"
+              className="w-full bg-white rounded-[16px] border border-slate-200 shadow-[0_2px_8px_rgba(0,0,0,0.04)] hover:shadow-[0_4px_16px_rgba(124,58,237,0.12)] hover:border-violet-200 transition-all duration-200 active:scale-[0.98] group"
             >
-              <div className="flex items-center gap-6 px-8 py-10">
-                <div className="w-[72px] h-[72px] rounded-[20px] bg-gradient-to-br from-violet-600 to-violet-800 flex items-center justify-center shadow-[0_6px_20px_rgba(124,58,237,0.35)] group-hover:scale-105 transition-transform flex-shrink-0">
-                  <Plus className="w-8 h-8 text-white" />
+              <div className="flex items-center gap-5 px-6 py-7">
+                <div className="w-[56px] h-[56px] rounded-[16px] bg-gradient-to-br from-violet-600 to-violet-800 flex items-center justify-center shadow-[0_4px_12px_rgba(124,58,237,0.3)] group-hover:scale-105 transition-transform flex-shrink-0">
+                  <Plus className="w-7 h-7 text-white" />
                 </div>
                 <div className="text-left flex-1">
-                  <div className="text-[19px] font-bold text-slate-800">新しい議事録を作成</div>
-                  <div className="text-[14px] text-slate-400 mt-2">録音 or ファイルアップロード</div>
+                  <div className="text-[17px] font-bold text-slate-800">新しい議事録を作成</div>
+                  <div className="text-[13px] text-slate-400 mt-1.5">録音 or ファイルアップロード</div>
                 </div>
-                <ChevronRight className="w-6 h-6 text-slate-300 group-hover:text-violet-400 group-hover:translate-x-1 transition-all flex-shrink-0" />
               </div>
             </button>
 
-            {/* Recent Records Section */}
-            <section>
-              <div className="flex items-center justify-between mb-8 px-1">
-                <h2 className="text-[13px] font-bold text-slate-400 uppercase tracking-[0.5px] flex items-center gap-2">
-                  <Clock className="w-4 h-4" />
-                  最近の記録
-                </h2>
-                <button onClick={() => setActiveTab('history')}
-                  className="text-[13px] text-violet-500 hover:text-violet-700 transition-colors flex items-center gap-0.5 font-semibold">
-                  すべて見る
-                  <ChevronRight className="w-4 h-4" />
-                </button>
-              </div>
-              <div className="bg-white rounded-[20px] border border-slate-200 shadow-[0_10px_25px_-5px_rgba(0,0,0,0.05),0_8px_10px_-6px_rgba(0,0,0,0.01)]">
-                <div className="max-h-[500px] overflow-y-auto p-6">
-                  <HistoryList userId={currentUser.id} userName={currentUser.name} refreshTrigger={refreshTrigger} />
-                </div>
-              </div>
-            </section>
+            {/* Spacer */}
+            <div className="h-10" />
+
+            {/* Records Section - flat layout, no wrapping card */}
+            <HistoryList userId={currentUser.id} userName={currentUser.name} refreshTrigger={refreshTrigger} />
           </div>
         )}
 
@@ -115,15 +100,8 @@ export default function Page() {
 
         {/* ===== HISTORY TAB ===== */}
         {activeTab === 'history' && mode === 'idle' && (
-          <div className="space-y-8 animate-fade-in-up">
-            <div className="px-1">
-              <h2 className="text-[13px] font-bold text-slate-400 uppercase tracking-[0.5px]">全履歴</h2>
-            </div>
-            <div className="bg-white rounded-[20px] border border-slate-200 shadow-[0_10px_25px_-5px_rgba(0,0,0,0.05),0_8px_10px_-6px_rgba(0,0,0,0.01)] min-h-[400px]">
-              <div className="p-6">
-                <HistoryList userId={currentUser.id} userName={currentUser.name} refreshTrigger={refreshTrigger} />
-              </div>
-            </div>
+          <div className="animate-fade-in-up">
+            <HistoryList userId={currentUser.id} userName={currentUser.name} refreshTrigger={refreshTrigger} />
           </div>
         )}
       </main>
