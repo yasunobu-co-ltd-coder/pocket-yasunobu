@@ -1,19 +1,99 @@
 'use client';
 
-import { useState, useEffect } from 'react';
-import { Loader2, User, RefreshCw, Mic, X, Plus, Trash2, Lock } from 'lucide-react';
+import { useState, useEffect, useCallback } from 'react';
+import { Loader2, User, RefreshCw, Mic, X, Plus, Trash2, Lock, GripVertical } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
+import {
+    DndContext,
+    closestCenter,
+    PointerSensor,
+    TouchSensor,
+    useSensor,
+    useSensors,
+    DragEndEvent,
+} from '@dnd-kit/core';
+import {
+    arrayMove,
+    SortableContext,
+    useSortable,
+    rectSortingStrategy,
+} from '@dnd-kit/sortable';
+import { CSS } from '@dnd-kit/utilities';
 
 const VALID_PIN = '8004';
 
 export interface UserData {
     id: string;
     name: string;
+    sort_order?: number;
     [key: string]: unknown;
 }
 
 interface UserSelectProps {
     onSelect: (user: UserData) => void;
+}
+
+/* ── Sortable user card ── */
+function SortableUserCard({
+    user,
+    deleteMode,
+    onSelect,
+    onDelete,
+}: {
+    user: UserData;
+    deleteMode: boolean;
+    onSelect: (user: UserData) => void;
+    onDelete: (user: UserData) => void;
+}) {
+    const {
+        attributes,
+        listeners,
+        setNodeRef,
+        transform,
+        transition,
+        isDragging,
+    } = useSortable({ id: user.id });
+
+    const style = {
+        transform: CSS.Transform.toString(transform),
+        transition,
+        opacity: isDragging ? 0.5 : 1,
+        zIndex: isDragging ? 50 : 'auto' as const,
+    };
+
+    return (
+        <div ref={setNodeRef} style={style} className="relative">
+            <button
+                onClick={() => { if (!deleteMode) onSelect(user); }}
+                className={`w-full rounded-[16px] py-5 px-4 flex items-center justify-center border transition-all duration-200 active:scale-[0.96] group ${
+                    deleteMode
+                        ? 'bg-red-50 border-red-200'
+                        : 'bg-slate-50 hover:bg-violet-50 border-slate-200 hover:border-violet-300 hover:shadow-[0_4px_16px_rgba(124,58,237,0.12)]'
+                }`}
+            >
+                {!deleteMode && (
+                    <span
+                        {...attributes}
+                        {...listeners}
+                        className="absolute left-2 top-1/2 -translate-y-1/2 text-slate-300 hover:text-slate-500 cursor-grab active:cursor-grabbing touch-none"
+                    >
+                        <GripVertical className="w-4 h-4" />
+                    </span>
+                )}
+                <span className={`text-[15px] font-bold ${deleteMode ? 'text-red-400' : 'text-slate-700 group-hover:text-violet-700'}`}>
+                    {user.name}
+                </span>
+            </button>
+            {deleteMode && (
+                <button
+                    onClick={() => onDelete(user)}
+                    className="absolute -top-2 -right-2 w-7 h-7 rounded-full bg-red-500 flex items-center justify-center shadow-md hover:bg-red-600 transition-colors active:scale-90"
+                >
+                    <X className="w-4 h-4 text-white" />
+                </button>
+            )}
+        </div>
+    );
 }
 
 export default function UserSelect({ onSelect }: UserSelectProps) {
@@ -26,6 +106,15 @@ export default function UserSelect({ onSelect }: UserSelectProps) {
     const [newUserName, setNewUserName] = useState('');
     const [deleteMode, setDeleteMode] = useState(false);
     const [isAdding, setIsAdding] = useState(false);
+
+    // Long-press: 250ms delay before drag starts
+    const pointerSensor = useSensor(PointerSensor, {
+        activationConstraint: { delay: 250, tolerance: 5 },
+    });
+    const touchSensor = useSensor(TouchSensor, {
+        activationConstraint: { delay: 250, tolerance: 5 },
+    });
+    const sensors = useSensors(pointerSensor, touchSensor);
 
     useEffect(() => {
         const verified = sessionStorage.getItem('pocket_matip_pin_verified');
@@ -42,14 +131,14 @@ export default function UserSelect({ onSelect }: UserSelectProps) {
         }
     };
 
-    const fetchUsers = async () => {
+    const fetchUsers = useCallback(async () => {
         setLoading(true);
         setError(null);
         try {
             const { data, error: fetchError } = await supabase
                 .from('user')
                 .select('*')
-                .order('id', { ascending: true });
+                .order('sort_order', { ascending: true });
             if (fetchError) throw fetchError;
             setUsers(data || []);
         } catch (e: unknown) {
@@ -59,9 +148,9 @@ export default function UserSelect({ onSelect }: UserSelectProps) {
         } finally {
             setLoading(false);
         }
-    };
+    }, []);
 
-    useEffect(() => { fetchUsers(); }, []);
+    useEffect(() => { fetchUsers(); }, [fetchUsers]);
 
     const handleAddUser = async () => {
         const name = newUserName.trim();
@@ -72,9 +161,10 @@ export default function UserSelect({ onSelect }: UserSelectProps) {
         }
         setIsAdding(true);
         try {
+            const maxOrder = users.reduce((max, u) => Math.max(max, (u.sort_order ?? 0)), -1);
             const { data, error: insertError } = await supabase
                 .from('user')
-                .insert([{ name }])
+                .insert([{ name, sort_order: maxOrder + 1 }])
                 .select()
                 .single();
             if (insertError) throw insertError;
@@ -94,7 +184,6 @@ export default function UserSelect({ onSelect }: UserSelectProps) {
             alert('最低1人のユーザーが必要です');
             return;
         }
-        // Check all related tables for user data
         const tables = [
             { name: 'pocket-matip', column: 'user_id', value: user.id, label: 'Pocket Matip議事録' },
             { name: 'matip-memo', column: 'created_by', value: user.name, label: 'Matip Memo' },
@@ -123,6 +212,24 @@ export default function UserSelect({ onSelect }: UserSelectProps) {
             const msg = e instanceof Error ? e.message : 'ユーザー削除エラー';
             alert('削除失敗: ' + msg);
         }
+    };
+
+    const handleDragEnd = async (event: DragEndEvent) => {
+        const { active, over } = event;
+        if (!over || active.id === over.id) return;
+
+        const oldIndex = users.findIndex(u => u.id === active.id);
+        const newIndex = users.findIndex(u => u.id === over.id);
+        const reordered = arrayMove(users, oldIndex, newIndex);
+
+        // Optimistic update
+        setUsers(reordered);
+
+        // Persist new order to Supabase
+        const updates = reordered.map((u, i) =>
+            supabase.from('user').update({ sort_order: i }).eq('id', u.id)
+        );
+        await Promise.all(updates);
     };
 
     if (!isPinVerified) {
@@ -209,32 +316,21 @@ export default function UserSelect({ onSelect }: UserSelectProps) {
                 )}
 
                 {!loading && !error && users.length > 0 && (
-                    <div className="grid grid-cols-2 gap-4">
-                        {users.map((user) => (
-                            <div key={user.id} className="relative">
-                                <button
-                                    onClick={() => { if (!deleteMode) onSelect(user); }}
-                                    className={`w-full rounded-[16px] py-5 px-4 flex items-center justify-center border transition-all duration-200 active:scale-[0.96] group ${
-                                        deleteMode
-                                            ? 'bg-red-50 border-red-200'
-                                            : 'bg-slate-50 hover:bg-violet-50 border-slate-200 hover:border-violet-300 hover:shadow-[0_4px_16px_rgba(124,58,237,0.12)]'
-                                    }`}
-                                >
-                                    <span className={`text-[15px] font-bold ${deleteMode ? 'text-red-400' : 'text-slate-700 group-hover:text-violet-700'}`}>
-                                        {user.name}
-                                    </span>
-                                </button>
-                                {deleteMode && (
-                                    <button
-                                        onClick={() => handleDeleteUser(user)}
-                                        className="absolute -top-2 -right-2 w-7 h-7 rounded-full bg-red-500 flex items-center justify-center shadow-md hover:bg-red-600 transition-colors active:scale-90"
-                                    >
-                                        <X className="w-4 h-4 text-white" />
-                                    </button>
-                                )}
+                    <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
+                        <SortableContext items={users.map(u => u.id)} strategy={rectSortingStrategy}>
+                            <div className="grid grid-cols-2 gap-4">
+                                {users.map((user) => (
+                                    <SortableUserCard
+                                        key={user.id}
+                                        user={user}
+                                        deleteMode={deleteMode}
+                                        onSelect={onSelect}
+                                        onDelete={handleDeleteUser}
+                                    />
+                                ))}
                             </div>
-                        ))}
-                    </div>
+                        </SortableContext>
+                    </DndContext>
                 )}
 
                 {/* Add user form */}
