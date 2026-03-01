@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { Mic, LogOut, Home, List, Plus } from 'lucide-react';
+import { Mic, LogOut, Home, List } from 'lucide-react';
 import UserSelect, { UserData } from '@/components/UserSelect';
 import HistoryList from '@/components/HistoryList';
 import VoiceRecorder from '@/components/VoiceRecorder';
@@ -61,27 +61,6 @@ export default function Page() {
         {/* ===== HOME TAB ===== */}
         {activeTab === 'home' && mode === 'idle' && (
           <div className="animate-fade-in-up">
-
-            {/* CTA Button */}
-            <button
-              onClick={() => setMode('voice')}
-              className="w-full bg-white rounded-[16px] border border-slate-200 shadow-[0_2px_8px_rgba(0,0,0,0.04)] hover:shadow-[0_4px_16px_rgba(124,58,237,0.12)] hover:border-violet-200 transition-all duration-200 active:scale-[0.98] group"
-            >
-              <div className="flex items-center gap-5 px-6 py-7">
-                <div className="w-[56px] h-[56px] rounded-[16px] bg-gradient-to-br from-violet-600 to-violet-800 flex items-center justify-center shadow-[0_4px_12px_rgba(124,58,237,0.3)] group-hover:scale-105 transition-transform flex-shrink-0">
-                  <Plus className="w-7 h-7 text-white" />
-                </div>
-                <div className="text-left flex-1">
-                  <div className="text-[17px] font-bold text-slate-800">新しい議事録を作成</div>
-                  <div className="text-[13px] text-slate-400 mt-1.5">録音 or ファイルアップロード</div>
-                </div>
-              </div>
-            </button>
-
-            {/* Spacer */}
-            <div className="h-10" />
-
-            {/* Records Section - flat layout, no wrapping card */}
             <HistoryList userId={currentUser.id} userName={currentUser.name} refreshTrigger={refreshTrigger} />
           </div>
         )}
