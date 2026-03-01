@@ -64,7 +64,7 @@ export default function HistoryList({ userId, refreshTrigger }: HistoryListProps
     if (loading) {
         return (
             <div className="flex items-center justify-center py-12">
-                <Loader2 className="w-5 h-5 text-violet-400 animate-spin" />
+                <Loader2 className="w-5 h-5 text-violet-500 animate-spin" />
             </div>
         );
     }
@@ -72,7 +72,7 @@ export default function HistoryList({ userId, refreshTrigger }: HistoryListProps
     if (error) {
         return (
             <div className="py-8 px-2">
-                <p className="text-[13px] text-red-300 bg-red-500/[0.08] rounded-xl py-3 px-4 border border-red-500/10 text-center">{error}</p>
+                <p className="text-[13px] text-red-600 bg-red-50 rounded-xl py-3 px-4 border border-red-100 text-center">{error}</p>
             </div>
         );
     }
@@ -80,32 +80,32 @@ export default function HistoryList({ userId, refreshTrigger }: HistoryListProps
     if (records.length === 0) {
         return (
             <div className="text-center py-16">
-                <div className="w-14 h-14 bg-white/[0.03] rounded-[14px] flex items-center justify-center mx-auto mb-4 border border-white/[0.06]">
-                    <FileText className="w-6 h-6 text-white/20" />
+                <div className="w-14 h-14 bg-slate-50 rounded-[14px] flex items-center justify-center mx-auto mb-4 border border-slate-100">
+                    <FileText className="w-6 h-6 text-slate-300" />
                 </div>
-                <p className="text-white/50 text-[14px] font-medium">まだ記録がありません</p>
-                <p className="text-white/25 text-[12px] mt-2">議事録を作成すると表示されます</p>
+                <p className="text-slate-500 text-[14px] font-medium">まだ記録がありません</p>
+                <p className="text-slate-300 text-[12px] mt-2">議事録を作成すると表示されます</p>
             </div>
         );
     }
 
     return (
-        <div className="space-y-2">
+        <div>
             {records.map((record) => (
                 <div key={record.id}
-                    className="rounded-[14px] px-4 py-4 hover:bg-white/[0.03] transition-colors duration-150 border border-transparent hover:border-white/[0.04]">
+                    className="rounded-[16px] px-[18px] py-[18px] mb-1 border border-transparent hover:border-slate-100 hover:bg-slate-50/50 transition-all duration-150">
                     <div className="flex items-start gap-3.5">
-                        <div className="w-10 h-10 rounded-[10px] bg-violet-500/10 flex items-center justify-center flex-shrink-0 mt-0.5">
-                            <FileText className="w-[18px] h-[18px] text-violet-400" />
+                        <div className="w-10 h-10 rounded-[10px] bg-violet-50 flex items-center justify-center flex-shrink-0 mt-0.5 border border-violet-100">
+                            <FileText className="w-[18px] h-[18px] text-violet-500" />
                         </div>
                         <div className="flex-1 min-w-0">
-                            <div className="flex items-center justify-between gap-3 mb-1.5">
-                                <span className="text-[15px] font-semibold text-white truncate">{record.client_name || '名称なし'}</span>
-                                <span className="text-[11px] text-white/35 flex-shrink-0 font-medium">
+                            <div className="flex items-center justify-between gap-3 mb-1">
+                                <span className="text-[15px] font-bold text-slate-800 truncate">{record.client_name || '名称なし'}</span>
+                                <span className="text-[11px] text-slate-400 flex-shrink-0 font-medium bg-slate-50 border border-slate-100 px-2.5 py-0.5 rounded-lg">
                                     {formatDate(record.created_at)}
                                 </span>
                             </div>
-                            <p className="text-[13px] text-white/45 line-clamp-2 leading-[1.7]">{record.summary}</p>
+                            <p className="text-[13px] text-slate-500 line-clamp-2 leading-[1.6]">{record.summary}</p>
                         </div>
                     </div>
                 </div>

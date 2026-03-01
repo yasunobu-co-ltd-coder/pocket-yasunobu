@@ -1,18 +1,14 @@
 @import "tailwindcss";
 
 :root {
-  --bg-app: #05020d;
-  --bg-surface: #0c0815;
-  --bg-elevated: #13101f;
-  --bg-input: rgba(20, 14, 36, 0.8);
-  --primary: #8b5cf6;
-  --primary-hover: #a78bfa;
-  --primary-glow: rgba(139, 92, 246, 0.25);
-  --border-subtle: rgba(139, 92, 246, 0.08);
-  --border-medium: rgba(139, 92, 246, 0.15);
-  --text-primary: #ffffff;
-  --text-secondary: rgba(255, 255, 255, 0.65);
-  --text-tertiary: rgba(255, 255, 255, 0.38);
+  --primary: #7c3aed;
+  --primary-glow: rgba(124, 58, 237, 0.35);
+  --bg-app: #f8fafc;
+  --card-bg: rgba(255, 255, 255, 0.85);
+  --glass-border: rgba(255, 255, 255, 0.6);
+  --text-main: #1e293b;
+  --text-sub: #64748b;
+  --danger: #ef4444;
 }
 
 * {
@@ -30,19 +26,20 @@ body {
   margin-left: auto;
   margin-right: auto;
   font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
-  background: var(--bg-app);
-  color: var(--text-primary);
+  background: white;
+  color: var(--text-main);
   min-height: 100vh;
   overflow-x: hidden;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+  box-shadow: 0 0 50px rgba(0, 0, 0, 0.05);
 }
 
 /* Scrollbar */
 ::-webkit-scrollbar { width: 3px; }
 ::-webkit-scrollbar-track { background: transparent; }
 ::-webkit-scrollbar-thumb {
-  background: rgba(139, 92, 246, 0.2);
+  background: rgba(124, 58, 237, 0.2);
   border-radius: 4px;
 }
 
@@ -63,16 +60,6 @@ body {
   animation: fadeInUp 0.4s ease-out;
 }
 
-@keyframes float {
-  0%, 100% { transform: translateY(0); }
-  50% { transform: translateY(-4px); }
-}
-
-@keyframes glow-pulse {
-  0%, 100% { opacity: 0.4; transform: scale(1); }
-  50% { opacity: 0.8; transform: scale(1.05); }
-}
-
 /* Safe area */
 @supports (padding-bottom: env(safe-area-inset-bottom)) {
   body { padding-bottom: env(safe-area-inset-bottom); }
@@ -80,6 +67,6 @@ body {
 
 /* Selection */
 ::selection {
-  background: rgba(139, 92, 246, 0.3);
-  color: white;
+  background: rgba(124, 58, 237, 0.2);
+  color: var(--text-main);
 }

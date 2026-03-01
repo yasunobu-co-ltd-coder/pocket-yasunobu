@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { Clock, Mic, Upload, LogOut, ChevronRight, Home, List, Plus } from 'lucide-react';
+import { Clock, Mic, LogOut, ChevronRight, Home, List, Plus } from 'lucide-react';
 import UserSelect, { UserData } from '@/components/UserSelect';
 import HistoryList from '@/components/HistoryList';
 import VoiceRecorder from '@/components/VoiceRecorder';
@@ -34,95 +34,66 @@ export default function Page() {
   }
 
   return (
-    <div className="min-h-screen pb-36 font-sans relative">
+    <div className="min-h-screen flex flex-col font-sans">
 
-      {/* ===== HEADER: 2段構成 ===== */}
-      <header className="sticky top-0 z-50 bg-[#05020d]/95 backdrop-blur-2xl border-b border-white/[0.06]">
-        {/* 上段: ブランド */}
-        <div className="px-6 pt-5 pb-2">
+      {/* ===== HEADER (topbar style) ===== */}
+      <header className="sticky top-0 z-50 bg-white/90 backdrop-blur-[10px] border-b border-black/5">
+        <div className="px-5 py-4 flex items-center justify-between">
+          <span className="font-extrabold text-[18px] bg-gradient-to-r from-violet-800 to-violet-500 bg-clip-text text-transparent tracking-[-0.5px]">
+            Pocket Matip
+          </span>
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-[12px] bg-gradient-to-br from-violet-500 to-purple-600 flex items-center justify-center shadow-lg shadow-violet-500/20">
-              <Mic className="w-5 h-5 text-white" />
+            <div className="bg-slate-100 rounded-full px-3 py-1.5">
+              <span className="text-[13px] font-semibold text-slate-600">{currentUser.name}</span>
             </div>
-            <div>
-              <h1 className="text-[18px] font-bold text-white tracking-tight leading-none">
-                Pocket Matip
-              </h1>
-              <p className="text-[11px] text-white/30 mt-0.5">AI議事録アシスタント</p>
-            </div>
+            <button onClick={handleLogout}
+              className="text-slate-400 hover:text-slate-600 transition-colors p-1.5 rounded-lg hover:bg-slate-50"
+              title="ユーザー切替">
+              <LogOut className="w-4 h-4" />
+            </button>
           </div>
-        </div>
-        {/* 下段: ユーザー情報 + アクション */}
-        <div className="px-6 pb-4 pt-1 flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <div className="w-7 h-7 rounded-full bg-violet-500/15 flex items-center justify-center">
-              <span className="text-[11px] font-bold text-violet-400">
-                {currentUser.name.charAt(0)}
-              </span>
-            </div>
-            <span className="text-[13px] font-medium text-white/70">
-              {currentUser.name}
-            </span>
-          </div>
-          <button onClick={handleLogout}
-            className="flex items-center gap-1.5 text-[12px] text-white/30 hover:text-white/60 transition-colors px-3 py-1.5 rounded-lg hover:bg-white/[0.04]"
-            title="ユーザー切替">
-            <LogOut className="w-3.5 h-3.5" />
-            切替
-          </button>
         </div>
       </header>
 
       {/* ===== MAIN CONTENT ===== */}
-      <main className="px-5 pt-6 pb-4">
+      <main className="flex-1 px-5 pt-5 pb-4">
 
         {/* ===== HOME TAB ===== */}
         {activeTab === 'home' && mode === 'idle' && (
-          <div className="space-y-8 animate-fade-in-up">
+          <div className="space-y-6 animate-fade-in-up">
 
-            {/* Hero CTA: 議事録作成 */}
-            <section>
-              <button
-                onClick={() => setMode('voice')}
-                className="w-full relative overflow-hidden bg-gradient-to-br from-violet-600/20 to-purple-700/10 backdrop-blur-xl rounded-[20px] border border-violet-500/15 shadow-[0_8px_40px_-8px_rgba(139,92,246,0.2)] hover:border-violet-500/30 hover:shadow-[0_12px_50px_-8px_rgba(139,92,246,0.3)] transition-all duration-300 active:scale-[0.98] group"
-              >
-                {/* Glow effect */}
-                <div className="absolute -top-16 left-1/2 -translate-x-1/2 w-48 h-48 bg-violet-500/10 rounded-full blur-3xl group-hover:bg-violet-500/20 transition-all" />
-
-                <div className="relative z-10 px-6 py-8 flex items-center gap-5">
-                  {/* Icon */}
-                  <div className="w-[68px] h-[68px] rounded-[18px] bg-gradient-to-br from-violet-500 to-purple-600 flex items-center justify-center shadow-xl shadow-violet-500/30 group-hover:shadow-violet-500/50 group-hover:scale-105 transition-all flex-shrink-0">
-                    <Plus className="w-7 h-7 text-white" />
-                  </div>
-                  {/* Text */}
-                  <div className="text-left flex-1">
-                    <div className="text-[18px] font-bold text-white mb-1">新しい議事録を作成</div>
-                    <div className="text-[13px] text-white/50 leading-relaxed">
-                      録音 or ファイルアップロード
-                    </div>
-                  </div>
-                  <ChevronRight className="w-5 h-5 text-white/20 group-hover:text-white/50 group-hover:translate-x-1 transition-all flex-shrink-0" />
+            {/* Hero CTA */}
+            <button
+              onClick={() => setMode('voice')}
+              className="w-full bg-white rounded-[20px] p-6 border border-slate-200 shadow-[0_10px_25px_-5px_rgba(0,0,0,0.05),0_8px_10px_-6px_rgba(0,0,0,0.01)] hover:shadow-[0_10px_25px_-5px_rgba(124,58,237,0.12)] hover:border-violet-200 transition-all duration-200 active:scale-[0.98] group"
+            >
+              <div className="flex items-center gap-5">
+                <div className="w-[60px] h-[60px] rounded-[16px] bg-gradient-to-br from-violet-600 to-violet-800 flex items-center justify-center shadow-[0_4px_12px_rgba(124,58,237,0.3)] group-hover:scale-105 transition-transform flex-shrink-0">
+                  <Plus className="w-7 h-7 text-white" />
                 </div>
-              </button>
-            </section>
+                <div className="text-left flex-1">
+                  <div className="text-[17px] font-bold text-slate-800">新しい議事録を作成</div>
+                  <div className="text-[13px] text-slate-400 mt-1">録音 or ファイルアップロード</div>
+                </div>
+                <ChevronRight className="w-5 h-5 text-slate-300 group-hover:text-violet-400 group-hover:translate-x-1 transition-all flex-shrink-0" />
+              </div>
+            </button>
 
             {/* Recent Records Section */}
             <section>
-              {/* Section Label */}
               <div className="flex items-center justify-between mb-4 px-1">
-                <h2 className="text-[13px] font-bold text-white/40 uppercase tracking-[0.08em] flex items-center gap-2">
+                <h2 className="text-[12px] font-bold text-slate-400 uppercase tracking-[0.5px] flex items-center gap-2">
                   <Clock className="w-3.5 h-3.5" />
                   最近の記録
                 </h2>
                 <button onClick={() => setActiveTab('history')}
-                  className="text-[12px] text-violet-400/70 hover:text-violet-400 transition-colors flex items-center gap-0.5 font-medium">
+                  className="text-[12px] text-violet-500 hover:text-violet-700 transition-colors flex items-center gap-0.5 font-semibold">
                   すべて見る
                   <ChevronRight className="w-3.5 h-3.5" />
                 </button>
               </div>
-              {/* Records Card */}
-              <div className="bg-[#0c0815]/90 backdrop-blur-xl rounded-[18px] border border-white/[0.05]">
-                <div className="max-h-[420px] overflow-y-auto p-4">
+              <div className="bg-white rounded-[20px] border border-slate-200 shadow-[0_10px_25px_-5px_rgba(0,0,0,0.05),0_8px_10px_-6px_rgba(0,0,0,0.01)]">
+                <div className="max-h-[420px] overflow-y-auto p-2">
                   <HistoryList userId={currentUser.id} refreshTrigger={refreshTrigger} />
                 </div>
               </div>
@@ -145,15 +116,11 @@ export default function Page() {
         {/* ===== HISTORY TAB ===== */}
         {activeTab === 'history' && mode === 'idle' && (
           <div className="space-y-4 animate-fade-in-up">
-            {/* Section Label */}
             <div className="px-1">
-              <h2 className="text-[13px] font-bold text-white/40 uppercase tracking-[0.08em]">
-                全履歴
-              </h2>
+              <h2 className="text-[12px] font-bold text-slate-400 uppercase tracking-[0.5px]">全履歴</h2>
             </div>
-            {/* Records */}
-            <div className="bg-[#0c0815]/90 backdrop-blur-xl rounded-[18px] border border-white/[0.05] min-h-[400px]">
-              <div className="p-4">
+            <div className="bg-white rounded-[20px] border border-slate-200 shadow-[0_10px_25px_-5px_rgba(0,0,0,0.05),0_8px_10px_-6px_rgba(0,0,0,0.01)] min-h-[400px]">
+              <div className="p-2">
                 <HistoryList userId={currentUser.id} refreshTrigger={refreshTrigger} />
               </div>
             </div>
@@ -162,40 +129,33 @@ export default function Page() {
       </main>
 
       {/* ===== BOTTOM NAVIGATION ===== */}
-      <nav className="fixed bottom-0 left-1/2 -translate-x-1/2 w-full max-w-[520px] z-50">
-        {/* Gradient fade above nav */}
-        <div className="h-6 bg-gradient-to-t from-[#05020d] to-transparent" />
-        <div className="bg-[#05020d]/98 backdrop-blur-2xl border-t border-white/[0.05]">
-          <div className="flex items-end justify-around px-4 pt-2 pb-[max(12px,env(safe-area-inset-bottom))]">
-            {/* Home */}
-            <button
-              onClick={() => { setActiveTab('home'); setMode('idle'); }}
-              className={`flex flex-col items-center gap-1 py-2 px-5 rounded-xl transition-all ${activeTab === 'home' && mode === 'idle' ? 'text-violet-400' : 'text-white/35'}`}
-            >
-              <Home className="w-[22px] h-[22px]" />
-              <span className="text-[11px] font-semibold">ホーム</span>
-            </button>
+      <nav className="sticky bottom-0 z-50 bg-white border-t border-slate-200">
+        <div className="flex items-center justify-around px-4 pt-3 pb-[max(16px,env(safe-area-inset-bottom))]">
+          <button
+            onClick={() => { setActiveTab('home'); setMode('idle'); }}
+            className={`flex flex-col items-center gap-1.5 py-1 w-[80px] transition-all ${activeTab === 'home' && mode === 'idle' ? 'text-violet-600 font-semibold' : 'text-slate-400'}`}
+          >
+            <Home className="w-[22px] h-[22px]" />
+            <span className="text-[11px]">ホーム</span>
+          </button>
 
-            {/* FAB: 録音 */}
-            <button
-              onClick={() => setMode('voice')}
-              className="relative -top-5 flex flex-col items-center"
-            >
-              <div className="w-[60px] h-[60px] rounded-full bg-gradient-to-br from-violet-500 to-purple-600 flex items-center justify-center shadow-[0_6px_28px_rgba(139,92,246,0.5)] active:scale-90 transition-transform border-[3px] border-[#05020d]">
-                <Mic className="w-6 h-6 text-white" />
-              </div>
-              <span className="text-[10px] font-semibold text-white/40 mt-1.5">録音</span>
-            </button>
+          <button
+            onClick={() => setMode('voice')}
+            className="relative -top-5 flex flex-col items-center"
+          >
+            <div className="w-[56px] h-[56px] rounded-full bg-gradient-to-br from-violet-600 to-violet-800 flex items-center justify-center shadow-[0_4px_12px_rgba(124,58,237,0.4)] active:scale-90 transition-transform border-[3px] border-white">
+              <Mic className="w-6 h-6 text-white" />
+            </div>
+            <span className="text-[10px] font-semibold text-slate-400 mt-1.5">録音</span>
+          </button>
 
-            {/* History */}
-            <button
-              onClick={() => { setActiveTab('history'); setMode('idle'); }}
-              className={`flex flex-col items-center gap-1 py-2 px-5 rounded-xl transition-all ${activeTab === 'history' && mode === 'idle' ? 'text-violet-400' : 'text-white/35'}`}
-            >
-              <List className="w-[22px] h-[22px]" />
-              <span className="text-[11px] font-semibold">履歴</span>
-            </button>
-          </div>
+          <button
+            onClick={() => { setActiveTab('history'); setMode('idle'); }}
+            className={`flex flex-col items-center gap-1.5 py-1 w-[80px] transition-all ${activeTab === 'history' && mode === 'idle' ? 'text-violet-600 font-semibold' : 'text-slate-400'}`}
+          >
+            <List className="w-[22px] h-[22px]" />
+            <span className="text-[11px]">履歴</span>
+          </button>
         </div>
       </nav>
     </div>

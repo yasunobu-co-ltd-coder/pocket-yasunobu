@@ -72,8 +72,6 @@ declare global {
 type InputMode = 'select' | 'recording' | 'uploading';
 
 export default function VoiceRecorder({ userId, userName, onSaved, onCancel }: VoiceRecorderProps) {
-    const VERSION = "v9.0";
-
     const [inputMode, setInputMode] = useState<InputMode>('select');
 
     // Recording State
@@ -262,7 +260,6 @@ export default function VoiceRecorder({ userId, userName, onSaved, onCancel }: V
     };
 
     // === アップロードモード ===
-    // 小さいファイル（25MB以下）はそのまま送信
     const transcribeSingleFile = async (file: File): Promise<string> => {
         const formData = new FormData();
         formData.append('file', file);
@@ -282,7 +279,6 @@ export default function VoiceRecorder({ userId, userName, onSaved, onCancel }: V
         return data.text || '';
     };
 
-    // 大きいファイルは分割して並列処理
     const transcribeWithChunking = async (file: File): Promise<string> => {
         setProcessStep('音声ファイルを解析・分割中...');
         const { chunks, totalDuration } = await splitAudioIntoChunks(file);
@@ -314,7 +310,6 @@ export default function VoiceRecorder({ userId, userName, onSaved, onCancel }: V
             return;
         }
 
-        // 200MB上限（分割処理するのでWhisperの25MB制限は超えてOK）
         const MAX_FILE_SIZE = 200 * 1024 * 1024;
         if (file.size > MAX_FILE_SIZE) {
             alert(`ファイルサイズが大きすぎます（${(file.size / 1024 / 1024).toFixed(0)}MB）。\n200MB以下のファイルをお選びください。`);
@@ -329,7 +324,6 @@ export default function VoiceRecorder({ userId, userName, onSaved, onCancel }: V
         try {
             let transcript: string;
 
-            // 25MB以下ならそのまま、超えたら分割並列処理
             if (file.size <= 24 * 1024 * 1024) {
                 transcript = await transcribeSingleFile(file);
             } else {
@@ -452,11 +446,11 @@ export default function VoiceRecorder({ userId, userName, onSaved, onCancel }: V
     // === Processing Screen ===
     if (isProcessing) {
         return (
-            <div className="bg-[#0c0815]/90 rounded-[20px] p-10 text-center border border-white/[0.06]">
-                <Loader2 className="w-10 h-10 text-violet-400 animate-spin mx-auto mb-5" />
-                <p className="text-white font-medium text-[15px] mb-1">{processStep}</p>
+            <div className="bg-white rounded-[20px] p-10 text-center border border-slate-200 shadow-[0_10px_25px_-5px_rgba(0,0,0,0.05)]">
+                <Loader2 className="w-10 h-10 text-violet-500 animate-spin mx-auto mb-5" />
+                <p className="text-slate-700 font-semibold text-[15px] mb-1">{processStep}</p>
                 {uploadedFile && (
-                    <p className="text-[13px] text-white/35 mt-2">{uploadedFile.name}</p>
+                    <p className="text-[13px] text-slate-400 mt-2">{uploadedFile.name}</p>
                 )}
             </div>
         );
@@ -466,31 +460,31 @@ export default function VoiceRecorder({ userId, userName, onSaved, onCancel }: V
     if (showTranscript) {
         return (
             <div className="space-y-5 animate-fade-in-up">
-                {/* Back button */}
-                <button onClick={resetAll} className="flex items-center gap-1.5 text-[13px] text-white/40 hover:text-white/70 transition-colors">
+                <button onClick={resetAll} className="flex items-center gap-1.5 text-[13px] text-slate-400 hover:text-slate-600 transition-colors">
                     <ArrowLeft className="w-4 h-4" />
                     やり直す
                 </button>
 
-                <div className="bg-[#0c0815]/90 rounded-[20px] border border-white/[0.06] overflow-hidden">
+                <div className="bg-white rounded-[20px] border border-slate-200 shadow-[0_10px_25px_-5px_rgba(0,0,0,0.05)] overflow-hidden">
                     {/* Status bar */}
-                    <div className="px-6 py-4 bg-emerald-500/[0.06] border-b border-white/[0.04] flex items-center gap-2.5">
-                        <Check className="w-4 h-4 text-emerald-400" />
-                        <span className="text-[14px] font-semibold text-emerald-400">文字起こし完了</span>
+                    <div className="px-6 py-4 bg-emerald-50 border-b border-emerald-100 flex items-center gap-2.5">
+                        <Check className="w-4 h-4 text-emerald-600" />
+                        <span className="text-[14px] font-semibold text-emerald-700">文字起こし完了</span>
                     </div>
 
                     <div className="p-6 space-y-5">
-                        <p className="text-[13px] text-white/45">
+                        <p className="text-[13px] text-slate-400">
                             内容を確認・編集してから「議事録にまとめる」をタップしてください
                         </p>
                         <textarea
                             value={editableTranscript}
                             onChange={(e) => setEditableTranscript(e.target.value)}
-                            className="w-full h-56 bg-white/[0.03] border border-white/[0.06] rounded-[14px] p-4 text-[14px] text-white leading-relaxed focus:border-violet-500/40 outline-none resize-none placeholder-white/20"
+                            className="w-full h-56 bg-slate-50 border border-slate-200 rounded-[12px] p-4 text-[14px] text-slate-700 leading-[1.6] focus:border-violet-400 focus:bg-white focus:shadow-[0_0_0_4px_rgba(124,58,237,0.1)] outline-none resize-none placeholder-slate-300 transition-all"
                             placeholder="文字起こし結果..."
                         />
                         <button onClick={generateMinutes}
-                            className="w-full bg-gradient-to-r from-violet-600 to-purple-600 text-white font-semibold py-4 rounded-[14px] shadow-lg shadow-violet-500/20 hover:shadow-violet-500/30 active:scale-[0.98] transition-all text-[15px]">
+                            className="w-full text-white font-bold py-4 rounded-[14px] shadow-[0_4px_12px_rgba(124,58,237,0.3)] active:scale-[0.97] transition-transform text-[16px]"
+                            style={{ background: 'linear-gradient(135deg, #7c3aed 0%, #6d28d9 100%)' }}>
                             議事録にまとめる
                         </button>
                     </div>
@@ -503,39 +497,39 @@ export default function VoiceRecorder({ userId, userName, onSaved, onCancel }: V
     if (result) {
         return (
             <div className="space-y-5 animate-fade-in-up">
-                <button onClick={resetAll} className="flex items-center gap-1.5 text-[13px] text-white/40 hover:text-white/70 transition-colors">
+                <button onClick={resetAll} className="flex items-center gap-1.5 text-[13px] text-slate-400 hover:text-slate-600 transition-colors">
                     <ArrowLeft className="w-4 h-4" />
                     やり直す
                 </button>
 
-                <div className="bg-[#0c0815]/90 rounded-[20px] border border-white/[0.06] overflow-hidden">
+                <div className="bg-white rounded-[20px] border border-slate-200 shadow-[0_10px_25px_-5px_rgba(0,0,0,0.05)] overflow-hidden">
                     {/* Status bar */}
-                    <div className="px-6 py-4 bg-emerald-500/[0.06] border-b border-white/[0.04] flex items-center gap-2.5">
-                        <Check className="w-4 h-4 text-emerald-400" />
-                        <span className="text-[14px] font-semibold text-emerald-400">議事録生成完了</span>
+                    <div className="px-6 py-4 bg-emerald-50 border-b border-emerald-100 flex items-center gap-2.5">
+                        <Check className="w-4 h-4 text-emerald-600" />
+                        <span className="text-[14px] font-semibold text-emerald-700">議事録生成完了</span>
                     </div>
 
-                    <div className="p-6 space-y-6">
+                    <div className="p-6 space-y-5">
                         {/* Customer name input */}
                         <div>
-                            <label className="block text-[12px] font-semibold text-white/40 uppercase tracking-wider mb-2">顧客名</label>
+                            <label className="block text-[12px] font-bold text-slate-400 uppercase tracking-[0.5px] mb-2">顧客名</label>
                             <input type="text" value={customer} onChange={(e) => setCustomer(e.target.value)}
-                                className="w-full bg-white/[0.03] border border-white/[0.06] rounded-[12px] px-4 py-3 text-[14px] text-white focus:border-violet-500/40 outline-none" />
+                                className="w-full bg-slate-50 border border-slate-200 rounded-[12px] px-4 py-3.5 text-[16px] text-slate-700 focus:border-violet-400 focus:bg-white focus:shadow-[0_0_0_4px_rgba(124,58,237,0.1)] outline-none transition-all" />
                         </div>
 
                         {/* Minutes content */}
                         <div className="space-y-5">
                             <div>
-                                <h4 className="text-[12px] font-semibold text-violet-400 uppercase tracking-wider mb-2">要約</h4>
-                                <p className="text-[14px] text-white/75 leading-[1.8] whitespace-pre-wrap">{result.summary}</p>
+                                <h4 className="text-[12px] font-bold text-slate-400 uppercase tracking-[0.5px] mb-2">要約</h4>
+                                <p className="text-[14px] text-slate-600 leading-[1.6] whitespace-pre-wrap">{result.summary}</p>
                             </div>
                             {result.decisions && result.decisions.length > 0 && (
                                 <div>
-                                    <h4 className="text-[12px] font-semibold text-violet-400 uppercase tracking-wider mb-2">決定事項</h4>
+                                    <h4 className="text-[12px] font-bold text-slate-400 uppercase tracking-[0.5px] mb-2">決定事項</h4>
                                     <ul className="space-y-1.5">
                                         {result.decisions.map((d, i) => (
-                                            <li key={i} className="text-[14px] text-white/75 flex gap-2">
-                                                <span className="text-violet-400/60 mt-0.5">•</span>
+                                            <li key={i} className="text-[14px] text-slate-600 flex gap-2">
+                                                <span className="text-violet-400 mt-0.5">•</span>
                                                 <span>{d}</span>
                                             </li>
                                         ))}
@@ -544,11 +538,11 @@ export default function VoiceRecorder({ userId, userName, onSaved, onCancel }: V
                             )}
                             {result.todos && result.todos.length > 0 && (
                                 <div>
-                                    <h4 className="text-[12px] font-semibold text-violet-400 uppercase tracking-wider mb-2">TODO</h4>
+                                    <h4 className="text-[12px] font-bold text-slate-400 uppercase tracking-[0.5px] mb-2">TODO</h4>
                                     <ul className="space-y-1.5">
                                         {result.todos.map((t, i) => (
-                                            <li key={i} className="text-[14px] text-white/75 flex gap-2">
-                                                <span className="text-violet-400/60 mt-0.5">•</span>
+                                            <li key={i} className="text-[14px] text-slate-600 flex gap-2">
+                                                <span className="text-violet-400 mt-0.5">•</span>
                                                 <span>{t}</span>
                                             </li>
                                         ))}
@@ -557,15 +551,16 @@ export default function VoiceRecorder({ userId, userName, onSaved, onCancel }: V
                             )}
                             {result.nextSchedule && (
                                 <div>
-                                    <h4 className="text-[12px] font-semibold text-violet-400 uppercase tracking-wider mb-2">次回予定</h4>
-                                    <p className="text-[14px] text-white/75">{result.nextSchedule}</p>
+                                    <h4 className="text-[12px] font-bold text-slate-400 uppercase tracking-[0.5px] mb-2">次回予定</h4>
+                                    <p className="text-[14px] text-slate-600">{result.nextSchedule}</p>
                                 </div>
                             )}
                         </div>
 
                         {/* Save button */}
                         <button onClick={saveMinutes}
-                            className="w-full bg-gradient-to-r from-violet-600 to-purple-600 text-white font-semibold py-4 rounded-[14px] shadow-lg shadow-violet-500/20 active:scale-[0.98] transition-all flex items-center justify-center gap-2 text-[15px]">
+                            className="w-full text-white font-bold py-4 rounded-[14px] shadow-[0_4px_12px_rgba(124,58,237,0.3)] active:scale-[0.97] transition-transform flex items-center justify-center gap-2 text-[16px]"
+                            style={{ background: 'linear-gradient(135deg, #7c3aed 0%, #6d28d9 100%)' }}>
                             <Save className="w-5 h-5" />
                             保存する
                         </button>
@@ -579,28 +574,25 @@ export default function VoiceRecorder({ userId, userName, onSaved, onCancel }: V
     if (inputMode === 'recording') {
         return (
             <div className="space-y-5 animate-fade-in-up">
-                <div className="bg-[#0c0815]/90 rounded-[20px] border border-white/[0.06] overflow-hidden">
+                <div className="bg-white rounded-[20px] border border-slate-200 shadow-[0_10px_25px_-5px_rgba(0,0,0,0.05)] overflow-hidden">
                     {/* Recording status bar */}
-                    <div className="px-6 py-3 bg-red-500/[0.08] border-b border-white/[0.04] flex items-center justify-between">
-                        <div className="flex items-center gap-2">
-                            <div className="w-2 h-2 rounded-full bg-red-500 animate-pulse" />
-                            <span className="text-[13px] font-semibold text-red-400">録音中</span>
-                        </div>
-                        <span className="text-[11px] text-white/20 font-mono">{VERSION}</span>
+                    <div className="px-6 py-3 bg-red-50 border-b border-red-100 flex items-center gap-2">
+                        <div className="w-2 h-2 rounded-full bg-red-500 animate-pulse" />
+                        <span className="text-[13px] font-semibold text-red-600">録音中</span>
                     </div>
 
                     <div className="p-8 text-center">
                         {/* Timer */}
                         <div className="mb-8">
-                            <div className="text-[48px] font-mono font-bold text-white tracking-wider">
+                            <div className="text-[48px] font-mono font-bold text-slate-800 tracking-wider">
                                 {formatTime(timer)}
                             </div>
                         </div>
 
                         {/* Live transcript */}
                         {liveTranscript && (
-                            <div className="mb-8 p-4 bg-white/[0.02] rounded-[14px] border border-white/[0.04] max-h-32 overflow-y-auto">
-                                <p className="text-[13px] text-white/60 text-left whitespace-pre-wrap leading-relaxed">{liveTranscript}</p>
+                            <div className="mb-8 p-4 bg-slate-50 rounded-[12px] border border-slate-200 max-h-32 overflow-y-auto">
+                                <p className="text-[13px] text-slate-500 text-left whitespace-pre-wrap leading-[1.6]">{liveTranscript}</p>
                             </div>
                         )}
 
@@ -620,10 +612,10 @@ export default function VoiceRecorder({ userId, userName, onSaved, onCancel }: V
 
                         {/* Stop button */}
                         <button onClick={stopRecording}
-                            className="w-[72px] h-[72px] rounded-full bg-gradient-to-r from-red-500 to-rose-600 shadow-xl shadow-red-500/30 flex items-center justify-center text-white hover:scale-105 active:scale-90 transition-all mx-auto">
+                            className="w-[72px] h-[72px] rounded-full bg-red-500 shadow-[0_4px_12px_rgba(239,68,68,0.3)] flex items-center justify-center text-white hover:scale-105 active:scale-90 transition-all mx-auto">
                             <Square fill="currentColor" className="w-7 h-7" />
                         </button>
-                        <p className="text-[12px] text-white/30 mt-5">タップして停止</p>
+                        <p className="text-[12px] text-slate-400 mt-5">タップして停止</p>
                     </div>
                 </div>
             </div>
@@ -634,49 +626,49 @@ export default function VoiceRecorder({ userId, userName, onSaved, onCancel }: V
     return (
         <div className="space-y-5 animate-fade-in-up">
             {/* Back */}
-            <button onClick={onCancel} className="flex items-center gap-1.5 text-[13px] text-white/40 hover:text-white/70 transition-colors">
+            <button onClick={onCancel} className="flex items-center gap-1.5 text-[13px] text-slate-400 hover:text-slate-600 transition-colors">
                 <ArrowLeft className="w-4 h-4" />
                 戻る
             </button>
 
             {/* Title */}
             <div className="px-1 mb-2">
-                <h2 className="text-[18px] font-bold text-white">入力方法を選択</h2>
-                <p className="text-[13px] text-white/40 mt-1">音声を録音するか、ファイルをアップロードしてください</p>
+                <h2 className="text-[18px] font-bold text-slate-800">入力方法を選択</h2>
+                <p className="text-[13px] text-slate-400 mt-1">音声を録音するか、ファイルをアップロードしてください</p>
             </div>
 
             {/* Option cards */}
             <div className="space-y-3">
                 {/* Record option */}
                 <button onClick={startRecording}
-                    className="w-full bg-[#0c0815]/90 border border-white/[0.06] rounded-[18px] p-5 flex items-center gap-4 hover:bg-white/[0.03] hover:border-white/[0.08] transition-all active:scale-[0.98] group">
-                    <div className="w-14 h-14 rounded-[14px] bg-gradient-to-br from-violet-500 to-purple-600 flex items-center justify-center shadow-lg shadow-violet-500/25 flex-shrink-0 group-hover:scale-105 transition-transform">
+                    className="w-full bg-white border border-slate-200 rounded-[16px] p-[18px] flex items-center gap-4 hover:border-violet-200 hover:shadow-[0_4px_12px_rgba(124,58,237,0.08)] transition-all active:scale-[0.98] group shadow-[0_4px_6px_-2px_rgba(0,0,0,0.03)]">
+                    <div className="w-14 h-14 rounded-[14px] bg-gradient-to-br from-violet-600 to-violet-800 flex items-center justify-center shadow-[0_4px_12px_rgba(124,58,237,0.3)] flex-shrink-0 group-hover:scale-105 transition-transform">
                         <Mic className="w-6 h-6 text-white" />
                     </div>
                     <div className="flex-1 text-left">
-                        <div className="text-[15px] font-semibold text-white">録音する</div>
-                        <div className="text-[12px] text-white/40 mt-0.5">リアルタイム文字起こし</div>
+                        <div className="text-[15px] font-bold text-slate-800">録音する</div>
+                        <div className="text-[12px] text-slate-400 mt-0.5">リアルタイム文字起こし</div>
                     </div>
-                    <ChevronRight className="w-4 h-4 text-white/15 group-hover:text-white/40 transition-colors flex-shrink-0" />
+                    <ChevronRight className="w-4 h-4 text-slate-300 group-hover:text-violet-400 transition-colors flex-shrink-0" />
                 </button>
 
                 {/* Upload option */}
                 <button onClick={() => audioFileInputRef.current?.click()}
-                    className="w-full bg-[#0c0815]/90 border border-white/[0.06] rounded-[18px] p-5 flex items-center gap-4 hover:bg-white/[0.03] hover:border-white/[0.08] transition-all active:scale-[0.98] group">
-                    <div className="w-14 h-14 rounded-[14px] bg-gradient-to-br from-purple-500 to-fuchsia-600 flex items-center justify-center shadow-lg shadow-purple-500/25 flex-shrink-0 group-hover:scale-105 transition-transform">
+                    className="w-full bg-white border border-slate-200 rounded-[16px] p-[18px] flex items-center gap-4 hover:border-violet-200 hover:shadow-[0_4px_12px_rgba(124,58,237,0.08)] transition-all active:scale-[0.98] group shadow-[0_4px_6px_-2px_rgba(0,0,0,0.03)]">
+                    <div className="w-14 h-14 rounded-[14px] bg-gradient-to-br from-violet-500 to-purple-700 flex items-center justify-center shadow-[0_4px_12px_rgba(124,58,237,0.3)] flex-shrink-0 group-hover:scale-105 transition-transform">
                         <Upload className="w-6 h-6 text-white" />
                     </div>
                     <div className="flex-1 text-left">
-                        <div className="text-[15px] font-semibold text-white">ファイルから</div>
-                        <div className="text-[12px] text-white/40 mt-0.5">ボイスメモ等を共有</div>
+                        <div className="text-[15px] font-bold text-slate-800">ファイルから</div>
+                        <div className="text-[12px] text-slate-400 mt-0.5">ボイスメモ等を共有</div>
                     </div>
-                    <ChevronRight className="w-4 h-4 text-white/15 group-hover:text-white/40 transition-colors flex-shrink-0" />
+                    <ChevronRight className="w-4 h-4 text-slate-300 group-hover:text-violet-400 transition-colors flex-shrink-0" />
                 </button>
             </div>
 
             <input type="file" ref={audioFileInputRef} accept=".mp3,.m4a,.wav,.webm,audio/*" hidden onChange={handleAudioFileSelect} />
 
-            <p className="text-[12px] text-white/25 text-center flex items-center justify-center gap-1.5 pt-2">
+            <p className="text-[12px] text-slate-300 text-center flex items-center justify-center gap-1.5 pt-2">
                 <FileAudio className="w-3 h-3" />
                 対応形式: mp3, m4a, wav (最大200MB)
             </p>

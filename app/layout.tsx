@@ -7,13 +7,13 @@ export const metadata: Metadata = {
   manifest: '/manifest.json',
   appleWebApp: {
     capable: true,
-    statusBarStyle: 'black-translucent',
+    statusBarStyle: 'default',
     title: 'Pocket Matip',
   },
 };
 
 export const viewport: Viewport = {
-  themeColor: '#05020d',
+  themeColor: '#f8fafc',
   width: 'device-width',
   initialScale: 1,
   maximumScale: 1,
@@ -34,7 +34,7 @@ export default function RootLayout({
         />
         <link rel="apple-touch-icon" href="/icons/icon-192.png" />
       </head>
-      <body className="max-w-[520px] mx-auto min-h-screen relative">{children}</body>
+      <body className="max-w-[600px] mx-auto min-h-screen relative">{children}</body>
     </html>
   );
 }
