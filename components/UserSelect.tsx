@@ -74,14 +74,21 @@ export default function UserSelect({ onSelect }: UserSelectProps) {
             alert('最低1人のユーザーが必要です');
             return;
         }
-        // Check if user has records
-        const { count } = await supabase
-            .from('pocket-matip')
-            .select('*', { count: 'exact', head: true })
-            .eq('user_id', user.id);
-        if (count && count > 0) {
-            alert(`${user.name} さんには ${count} 件の議事録があるため削除できません`);
-            return;
+        // Check all related tables for user data
+        const tables = [
+            { name: 'pocket-matip', label: 'Pocket Matip議事録' },
+            { name: 'matip-memo', label: 'Matip Memo' },
+            { name: 'matip-memo-unread', label: 'Matip Memo未読' },
+        ];
+        for (const table of tables) {
+            const { count } = await supabase
+                .from(table.name)
+                .select('*', { count: 'exact', head: true })
+                .eq('user_id', user.id);
+            if (count && count > 0) {
+                alert(`${user.name} さんには ${table.label} に ${count} 件のデータがあるため削除できません`);
+                return;
+            }
         }
         if (!confirm(`${user.name} さんを削除しますか？`)) return;
         try {
