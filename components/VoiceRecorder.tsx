@@ -419,7 +419,7 @@ export default function VoiceRecorder({ userId, userName, onSaved, onCancel }: V
         }
     };
 
-    // pocket-matip テーブルに保存
+    // pocket-yasunobu テーブルに保存
     const saveMinutes = async () => {
         if (!result) return;
 
@@ -436,7 +436,7 @@ export default function VoiceRecorder({ userId, userName, onSaved, onCancel }: V
             }
 
             const { error } = await supabase
-                .from('pocket-matip')
+                .from('pocket-yasunobu')
                 .insert({
                     user_id: userId,
                     user_name: userName,

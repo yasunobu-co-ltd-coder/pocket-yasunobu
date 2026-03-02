@@ -2,13 +2,13 @@ import type { Metadata, Viewport } from 'next';
 import './globals.css';
 
 export const metadata: Metadata = {
-  title: 'Pocket Matip',
+  title: 'Pocket Yasunobu',
   description: '音声から議事録を自動生成',
   manifest: '/manifest.json',
   appleWebApp: {
     capable: true,
     statusBarStyle: 'default',
-    title: 'Pocket Matip',
+    title: 'Pocket Yasunobu',
   },
 };
 
@@ -32,7 +32,7 @@ export default function RootLayout({
           href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap"
           rel="stylesheet"
         />
-        <link rel="apple-touch-icon" href="/favicon.png" />
+        <link rel="apple-touch-icon" href="/annyan.png" />
       </head>
       <body className="max-w-[600px] mx-auto min-h-screen relative">{children}</body>
     </html>

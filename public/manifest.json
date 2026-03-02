@@ -1,6 +1,6 @@
 {
-  "name": "Pocket Matip",
-  "short_name": "Pocket Matip",
+  "name": "Pocket Yasunobu",
+  "short_name": "Pocket Yasunobu",
   "description": "AI議事録アシスタント",
   "start_url": "/",
   "display": "standalone",
@@ -8,7 +8,7 @@
   "theme_color": "#7c3aed",
   "icons": [
     {
-      "src": "/favicon.png",
+      "src": "/annyan.png",
       "sizes": "any",
       "type": "image/png",
       "purpose": "any maskable"

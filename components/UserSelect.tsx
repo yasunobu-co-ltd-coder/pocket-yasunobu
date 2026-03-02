@@ -20,7 +20,7 @@ import {
 } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
 
-const VALID_PIN = '8004';
+const VALID_PIN = '0727';
 
 export interface UserData {
     id: string;
@@ -117,14 +117,14 @@ export default function UserSelect({ onSelect }: UserSelectProps) {
     const sensors = useSensors(pointerSensor, touchSensor);
 
     useEffect(() => {
-        const verified = sessionStorage.getItem('pocket_matip_pin_verified');
+        const verified = sessionStorage.getItem('pocket_yasunobu_pin_verified');
         if (verified === 'true') setIsPinVerified(true);
     }, []);
 
     const handlePinSubmit = () => {
         if (pin === VALID_PIN) {
             setIsPinVerified(true);
-            sessionStorage.setItem('pocket_matip_pin_verified', 'true');
+            sessionStorage.setItem('pocket_yasunobu_pin_verified', 'true');
             setPinError('');
         } else {
             setPinError('PINコードが正しくありません');
@@ -185,9 +185,9 @@ export default function UserSelect({ onSelect }: UserSelectProps) {
             return;
         }
         const tables = [
-            { name: 'pocket-matip', column: 'user_id', value: user.id, label: 'Pocket Matip議事録' },
-            { name: 'matip-memo', column: 'created_by', value: user.name, label: 'Matip Memo' },
-            { name: 'matip-memo-unread', column: 'user_name', value: user.name, label: 'Matip Memo未読' },
+            { name: 'pocket-yasunobu', column: 'user_id', value: user.id, label: 'Pocket Yasunobu議事録' },
+            { name: 'yasunobu-memo', column: 'created_by', value: user.name, label: 'Yasunobu Memo' },
+            { name: 'yasunobu-memo-unread', column: 'user_name', value: user.name, label: 'Yasunobu Memo未読' },
         ];
         for (const table of tables) {
             const { count } = await supabase
@@ -241,7 +241,7 @@ export default function UserSelect({ onSelect }: UserSelectProps) {
                         <Lock className="w-9 h-9 text-white" />
                     </div>
                     <h1 className="font-extrabold text-[26px] bg-gradient-to-r from-violet-800 to-violet-500 bg-clip-text text-transparent tracking-[-0.5px] mb-2">
-                        Pocket Matip
+                        Pocket Yasunobu
                     </h1>
                     <p className="text-slate-400 text-[13px]">PINコードを入力してください</p>
                 </div>
@@ -280,7 +280,7 @@ export default function UserSelect({ onSelect }: UserSelectProps) {
                 </div>
                 <div className="flex items-center justify-center gap-3 mb-2">
                     <h1 className="font-extrabold text-[26px] bg-gradient-to-r from-violet-800 to-violet-500 bg-clip-text text-transparent tracking-[-0.5px]">
-                        Pocket Matip
+                        Pocket Yasunobu
                     </h1>
                     <span className="text-[11px] text-slate-400 font-mono">v1.12.5</span>
                 </div>

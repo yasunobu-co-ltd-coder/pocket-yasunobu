@@ -49,7 +49,7 @@ export default function HistoryList({ userId, userName, refreshTrigger, initialS
             setError(null);
             try {
                 const { data, error: fetchError } = await supabase
-                    .from('pocket-matip')
+                    .from('pocket-yasunobu')
                     .select('*')
                     .order('created_at', { ascending: false })
                     .limit(50);
@@ -130,7 +130,7 @@ export default function HistoryList({ userId, userName, refreshTrigger, initialS
         setIsSaving(true);
         try {
             const { error: updateError } = await supabase
-                .from('pocket-matip')
+                .from('pocket-yasunobu')
                 .update({
                     client_name: editClientName,
                     summary: editSummary,
@@ -329,7 +329,7 @@ export default function HistoryList({ userId, userName, refreshTrigger, initialS
                                                 setIsDeleting(true);
                                                 try {
                                                     const { error: deleteError } = await supabase
-                                                        .from('pocket-matip')
+                                                        .from('pocket-yasunobu')
                                                         .delete()
                                                         .eq('id', selectedRecord.id);
                                                     if (deleteError) throw deleteError;
