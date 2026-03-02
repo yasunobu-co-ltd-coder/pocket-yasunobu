@@ -235,6 +235,7 @@ export default function Page() {
               userName={currentUser.name}
               refreshTrigger={refreshTrigger}
               initialSearch={historySearch}
+              onDataChanged={() => setRefreshTrigger(prev => prev + 1)}
             />
           </div>
         )}

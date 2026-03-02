@@ -11,6 +11,7 @@ interface HistoryListProps {
     userName: string;
     refreshTrigger: number;
     initialSearch?: string;
+    onDataChanged?: () => void;
 }
 
 interface MinutesRecord {
@@ -27,7 +28,7 @@ interface MinutesRecord {
     keywords?: string[];
 }
 
-export default function HistoryList({ userId, userName, refreshTrigger, initialSearch }: HistoryListProps) {
+export default function HistoryList({ userId, userName, refreshTrigger, initialSearch, onDataChanged }: HistoryListProps) {
     const [records, setRecords] = useState<MinutesRecord[]>([]);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
@@ -334,6 +335,7 @@ export default function HistoryList({ userId, userName, refreshTrigger, initialS
                                                     if (deleteError) throw deleteError;
                                                     setRecords(records.filter(r => r.id !== selectedRecord.id));
                                                     setSelectedRecord(null);
+                                                    onDataChanged?.();
                                                 } catch (e: unknown) {
                                                     console.error('Delete error:', e);
                                                     const msg = e instanceof Error ? e.message : '削除エラー';
