@@ -344,9 +344,11 @@ export default function VoiceRecorder({ userId, userName, onSaved, onCancel }: V
         try {
             let transcript: string;
 
-            if (file.size <= 24 * 1024 * 1024) {
+            if (file.size <= 4 * 1024 * 1024) {
+                // 4MB以下: Whisper APIに直接送信
                 transcript = await transcribeSingleFile(file);
             } else {
+                // 4MB超: クライアント側でWAVチャンクに分割して送信（Vercel 4.5MB制限対策）
                 try {
                     transcript = await transcribeWithChunking(file);
                 } catch (chunkError) {
