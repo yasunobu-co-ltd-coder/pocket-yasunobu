@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect, useCallback } from 'react';
-import { Loader2, User, RefreshCw, Mic, X, Plus, Trash2, Lock, GripVertical } from 'lucide-react';
+import { Loader2, User, RefreshCw, Mic, X, Plus, Trash2, Lock, GripVertical, AlertTriangle } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 import {
     DndContext,
@@ -32,6 +32,33 @@ export interface UserData {
 interface UserSelectProps {
     onSelect: (user: UserData) => void;
 }
+
+interface RefCounts {
+    pocket_yasunobu: number;
+    memo_created: number;
+    memo_assigned: number;
+    memo_unread: number;
+    push_subs: number;
+    notif_triggered: number;
+}
+
+interface DeleteModalState {
+    user: UserData;
+    loading: boolean;
+    error: string | null;
+    counts: RefCounts | null;
+    canDelete: boolean;
+    deleting: boolean;
+}
+
+const REF_LABELS: { key: keyof RefCounts; label: string }[] = [
+    { key: 'pocket_yasunobu', label: '議事録' },
+    { key: 'memo_created', label: 'メモ（作成）' },
+    { key: 'memo_assigned', label: 'メモ（担当）' },
+    { key: 'memo_unread', label: '未読メモ' },
+    { key: 'push_subs', label: '通知購読' },
+    { key: 'notif_triggered', label: '通知ログ' },
+];
 
 /* ── Sortable user card ── */
 function SortableUserCard({
@@ -106,6 +133,7 @@ export default function UserSelect({ onSelect }: UserSelectProps) {
     const [newUserName, setNewUserName] = useState('');
     const [deleteMode, setDeleteMode] = useState(false);
     const [isAdding, setIsAdding] = useState(false);
+    const [deleteModal, setDeleteModal] = useState<DeleteModalState | null>(null);
 
     // Long-press: 250ms delay before drag starts
     const pointerSensor = useSensor(PointerSensor, {
@@ -136,9 +164,10 @@ export default function UserSelect({ onSelect }: UserSelectProps) {
         setError(null);
         try {
             const { data, error: fetchError } = await supabase
-                .from('user')
-                .select('*')
-                .order('sort_order', { ascending: true });
+                .from('users')
+                .select('id,name,sort_order,created_at')
+                .order('sort_order')
+                .order('created_at');
             if (fetchError) throw fetchError;
             setUsers(data || []);
         } catch (e: unknown) {
@@ -163,9 +192,9 @@ export default function UserSelect({ onSelect }: UserSelectProps) {
         try {
             const maxOrder = users.reduce((max, u) => Math.max(max, (u.sort_order ?? 0)), -1);
             const { data, error: insertError } = await supabase
-                .from('user')
+                .from('users')
                 .insert([{ name, sort_order: maxOrder + 1 }])
-                .select()
+                .select('id,name,sort_order,created_at')
                 .single();
             if (insertError) throw insertError;
             setUsers(prev => [...prev, data]);
@@ -184,33 +213,45 @@ export default function UserSelect({ onSelect }: UserSelectProps) {
             alert('最低1人のユーザーが必要です');
             return;
         }
-        const tables = [
-            { name: 'pocket-yasunobu', column: 'user_id', value: user.id, label: 'Pocket Yasunobu議事録' },
-            { name: 'yasunobu-memo', column: 'created_by', value: user.name, label: 'Yasunobu Memo' },
-            { name: 'yasunobu-memo-unread', column: 'user_name', value: user.name, label: 'Yasunobu Memo未読' },
-        ];
-        for (const table of tables) {
-            const { count } = await supabase
-                .from(table.name)
-                .select('*', { count: 'exact', head: true })
-                .eq(table.column, table.value);
-            if (count && count > 0) {
-                alert(`${user.name} さんには ${table.label} に ${count} 件のデータがあるため削除できません`);
-                return;
+
+        // Open modal and fetch ref counts
+        setDeleteModal({ user, loading: true, error: null, counts: null, canDelete: false, deleting: false });
+
+        try {
+            const res = await fetch(`/api/users/${user.id}/refs`);
+            if (!res.ok) {
+                const body = await res.json().catch(() => ({}));
+                throw new Error(body.error || `HTTP ${res.status}`);
             }
+            const data = await res.json();
+            setDeleteModal(prev => prev ? {
+                ...prev,
+                loading: false,
+                counts: data.counts,
+                canDelete: data.canDelete,
+            } : null);
+        } catch (e: unknown) {
+            console.error('Refs check error:', e);
+            const msg = e instanceof Error ? e.message : '参照件数の取得に失敗しました';
+            setDeleteModal(prev => prev ? { ...prev, loading: false, error: msg } : null);
         }
-        if (!confirm(`${user.name} さんを削除しますか？`)) return;
+    };
+
+    const executeDelete = async () => {
+        if (!deleteModal) return;
+        setDeleteModal(prev => prev ? { ...prev, deleting: true } : null);
         try {
             const { error: deleteError } = await supabase
-                .from('user')
+                .from('users')
                 .delete()
-                .eq('id', user.id);
+                .eq('id', deleteModal.user.id);
             if (deleteError) throw deleteError;
-            setUsers(prev => prev.filter(u => u.id !== user.id));
+            setUsers(prev => prev.filter(u => u.id !== deleteModal.user.id));
+            setDeleteModal(null);
         } catch (e: unknown) {
             console.error('Delete user error:', e);
             const msg = e instanceof Error ? e.message : 'ユーザー削除エラー';
-            alert('削除失敗: ' + msg);
+            setDeleteModal(prev => prev ? { ...prev, deleting: false, error: msg } : null);
         }
     };
 
@@ -227,7 +268,7 @@ export default function UserSelect({ onSelect }: UserSelectProps) {
 
         // Persist new order to Supabase
         const updates = reordered.map((u, i) =>
-            supabase.from('user').update({ sort_order: i }).eq('id', u.id)
+            supabase.from('users').update({ sort_order: i }).eq('id', u.id)
         );
         await Promise.all(updates);
     };
@@ -373,6 +414,90 @@ export default function UserSelect({ onSelect }: UserSelectProps) {
                     </button>
                 )}
             </div>
+
+            {/* ===== Delete confirmation modal ===== */}
+            {deleteModal && (
+                <div
+                    className="fixed inset-0 bg-black/50 z-[100] flex items-center justify-center p-5"
+                    onClick={(e) => { if (e.target === e.currentTarget && !deleteModal.deleting) setDeleteModal(null); }}
+                >
+                    <div className="bg-white rounded-[20px] w-full max-w-[380px] shadow-xl">
+                        {/* Header */}
+                        <div className="px-7 pt-7 pb-5 border-b border-slate-100 flex items-center justify-between">
+                            <h2 className="text-[17px] font-bold text-slate-800">ユーザー削除</h2>
+                            <button
+                                onClick={() => { if (!deleteModal.deleting) setDeleteModal(null); }}
+                                className="w-8 h-8 rounded-full bg-slate-100 flex items-center justify-center hover:bg-slate-200 transition-colors"
+                            >
+                                <X className="w-4 h-4 text-slate-500" />
+                            </button>
+                        </div>
+
+                        <div className="p-7">
+                            {/* User name */}
+                            <div className="flex items-center gap-2 mb-5">
+                                <User className="w-5 h-5 text-slate-400" />
+                                <span className="text-[16px] font-bold text-slate-800">{deleteModal.user.name}</span>
+                            </div>
+
+                            {/* Loading state */}
+                            {deleteModal.loading && (
+                                <div className="flex flex-col items-center py-8 gap-3">
+                                    <Loader2 className="w-6 h-6 text-violet-500 animate-spin" />
+                                    <p className="text-[13px] text-slate-400">参照データを確認中...</p>
+                                </div>
+                            )}
+
+                            {/* Error state */}
+                            {deleteModal.error && (
+                                <div className="bg-red-50 border border-red-100 rounded-2xl p-5 text-center">
+                                    <p className="text-[13px] text-red-600">{deleteModal.error}</p>
+                                </div>
+                            )}
+
+                            {/* Counts table */}
+                            {deleteModal.counts && (
+                                <>
+                                    <div className="bg-slate-50 rounded-[14px] border border-slate-200 overflow-hidden mb-5">
+                                        {REF_LABELS.map(({ key, label }) => {
+                                            const count = deleteModal.counts![key];
+                                            return (
+                                                <div key={key} className="flex items-center justify-between px-5 py-3 border-b border-slate-100 last:border-b-0">
+                                                    <span className="text-[14px] text-slate-600">{label}</span>
+                                                    <span className={`text-[14px] font-bold ${count > 0 ? 'text-red-500' : 'text-slate-400'}`}>
+                                                        {count} 件
+                                                    </span>
+                                                </div>
+                                            );
+                                        })}
+                                    </div>
+
+                                    {!deleteModal.canDelete ? (
+                                        <div className="flex items-start gap-2 bg-amber-50 border border-amber-200 rounded-[12px] px-4 py-3">
+                                            <AlertTriangle className="w-5 h-5 text-amber-500 flex-shrink-0 mt-0.5" />
+                                            <p className="text-[13px] text-amber-700 leading-[1.6]">
+                                                関連データが残っているため削除できません。先にデータを削除・移行してください。
+                                            </p>
+                                        </div>
+                                    ) : (
+                                        <button
+                                            onClick={executeDelete}
+                                            disabled={deleteModal.deleting}
+                                            className="w-full bg-red-500 text-white rounded-[14px] py-4 font-bold text-[15px] hover:bg-red-600 transition-colors active:scale-[0.97] disabled:opacity-50 flex items-center justify-center gap-2"
+                                        >
+                                            {deleteModal.deleting ? (
+                                                <><Loader2 className="w-4 h-4 animate-spin" />削除中...</>
+                                            ) : (
+                                                <><Trash2 className="w-4 h-4" />削除する</>
+                                            )}
+                                        </button>
+                                    )}
+                                </>
+                            )}
+                        </div>
+                    </div>
+                </div>
+            )}
 
         </div>
     );

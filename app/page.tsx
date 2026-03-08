@@ -15,8 +15,8 @@ interface MinutesRecord {
   created_at: string;
   client_name: string;
   summary: string;
-  user_name: string;
   user_id: string;
+  user?: { name: string } | null;
   transcript?: string;
 }
 
@@ -52,10 +52,10 @@ export default function Page() {
     const fetch = async () => {
       const { data } = await supabase
         .from('pocket-yasunobu')
-        .select('*')
+        .select('*, user:users!pocket-yasunobu_user_id_fkey(name)')
         .order('created_at', { ascending: false })
         .limit(50);
-      setHomeRecords(data || []);
+      setHomeRecords((data as unknown as MinutesRecord[]) || []);
     };
     fetch();
   }, [currentUser, refreshTrigger]);
@@ -263,7 +263,7 @@ export default function Page() {
               </div>
               <div className="flex items-center gap-2">
                 <User className="w-4 h-4 text-slate-400" />
-                <span className="text-[14px] text-slate-500">{selectedHomeRecord.user_name}</span>
+                <span className="text-[14px] text-slate-500">{selectedHomeRecord.user?.name ?? '不明'}</span>
               </div>
               <div>
                 <label className="block text-[13px] font-bold text-slate-400 uppercase tracking-[0.5px] mb-3">内容</label>

@@ -19,8 +19,8 @@ interface MinutesRecord {
     created_at: string;
     client_name: string;
     summary: string;
-    user_name: string;
     user_id: string;
+    user?: { name: string } | null;
     transcript?: string;
     decisions?: string[];
     todos?: string[];
@@ -50,11 +50,11 @@ export default function HistoryList({ userId, userName, refreshTrigger, initialS
             try {
                 const { data, error: fetchError } = await supabase
                     .from('pocket-yasunobu')
-                    .select('*')
+                    .select('*, user:users!pocket-yasunobu_user_id_fkey(name)')
                     .order('created_at', { ascending: false })
                     .limit(50);
                 if (fetchError) throw fetchError;
-                setRecords(data || []);
+                setRecords((data as unknown as MinutesRecord[]) || []);
             } catch (e: unknown) {
                 console.error('Fetch records error:', e);
                 const msg = e instanceof Error ? e.message : 'データ取得エラー';
@@ -78,7 +78,7 @@ export default function HistoryList({ userId, userName, refreshTrigger, initialS
                     r.client_name,
                     r.summary,
                     r.transcript,
-                    r.user_name,
+                    r.user?.name,
                     r.next_schedule,
                     ...(r.decisions || []),
                     ...(r.todos || []),
@@ -237,7 +237,7 @@ export default function HistoryList({ userId, userName, refreshTrigger, initialS
                         <div className="px-6 py-4 border-t border-slate-100 flex items-center justify-between">
                             <span className="flex items-center gap-2 text-[13px] text-slate-400">
                                 <span className="w-[7px] h-[7px] rounded-full" style={{ background: record.user_id === userId ? '#7c3aed' : '#cbd5e1' }} />
-                                {record.user_name}
+                                {record.user?.name ?? '不明'}
                             </span>
                             <span className="text-[12px] text-slate-300">{formatTimestamp(record.created_at)}</span>
                         </div>
@@ -308,7 +308,7 @@ export default function HistoryList({ userId, userName, refreshTrigger, initialS
                                     {/* Creator */}
                                     <div className="flex items-center gap-2">
                                         <User className="w-4 h-4 text-slate-400" />
-                                        <span className="text-[14px] text-slate-500">{selectedRecord.user_name}</span>
+                                        <span className="text-[14px] text-slate-500">{selectedRecord.user?.name ?? '不明'}</span>
                                     </div>
 
                                     {/* Summary */}
