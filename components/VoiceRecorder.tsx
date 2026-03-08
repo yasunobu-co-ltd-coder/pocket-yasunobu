@@ -86,6 +86,7 @@ export default function VoiceRecorder({ userId, userName, onSaved, onCancel }: V
 
     // Web Speech API
     const recognitionRef = useRef<ISpeechRecognition | null>(null);
+    const isRecordingRef = useRef<boolean>(false);
     const [liveTranscript, setLiveTranscript] = useState<string>('');
     const finalTranscriptRef = useRef<string>('');
 
@@ -138,23 +139,55 @@ export default function VoiceRecorder({ userId, userName, onSaved, onCancel }: V
         return `${String(mins).padStart(2, '0')}:${String(secs).padStart(2, '0')}`;
     };
 
+    const smoothedLevelRef = useRef<number>(0);
+    const barLevelsRef = useRef<number[]>(new Array(32).fill(0));
+
     const startAudioLevelMonitoring = (stream: MediaStream) => {
         const audioContext = new AudioContext();
         const analyser = audioContext.createAnalyser();
         const microphone = audioContext.createMediaStreamSource(stream);
         analyser.fftSize = 256;
+        analyser.smoothingTimeConstant = 0.4;
         const bufferLength = analyser.frequencyBinCount;
-        const dataArray = new Uint8Array(bufferLength);
+        const freqData = new Uint8Array(bufferLength);
         microphone.connect(analyser);
         audioContextRef.current = audioContext;
         analyserRef.current = analyser;
 
+        const NOISE_GATE = 8;
+        const BAR_COUNT = 32;
+
         const updateLevel = () => {
             if (!analyserRef.current) return;
-            analyserRef.current.getByteFrequencyData(dataArray);
-            const average = dataArray.reduce((a, b) => a + b, 0) / bufferLength;
-            const level = Math.min(100, (average / 255) * 200);
-            setAudioLevel(level);
+            analyserRef.current.getByteFrequencyData(freqData);
+
+            const barsPerBin = Math.floor(bufferLength / BAR_COUNT);
+            const newBarLevels = barLevelsRef.current;
+
+            let totalEnergy = 0;
+            for (let bar = 0; bar < BAR_COUNT; bar++) {
+                let sum = 0;
+                const start = bar * barsPerBin;
+                for (let j = start; j < start + barsPerBin; j++) {
+                    sum += freqData[j];
+                }
+                const avg = sum / barsPerBin;
+                const gated = avg < NOISE_GATE ? 0 : avg - NOISE_GATE;
+                const normalized = Math.min(100, (gated / (255 - NOISE_GATE)) * 100);
+                const prev = newBarLevels[bar];
+                newBarLevels[bar] = normalized > prev
+                    ? prev + (normalized - prev) * 0.6
+                    : prev + (normalized - prev) * 0.2;
+                totalEnergy += newBarLevels[bar];
+            }
+            barLevelsRef.current = newBarLevels;
+
+            const overall = totalEnergy / BAR_COUNT;
+            const prevSmoothed = smoothedLevelRef.current;
+            smoothedLevelRef.current = overall > prevSmoothed
+                ? prevSmoothed + (overall - prevSmoothed) * 0.5
+                : prevSmoothed + (overall - prevSmoothed) * 0.15;
+            setAudioLevel(smoothedLevelRef.current);
             animationFrameRef.current = requestAnimationFrame(updateLevel);
         };
         updateLevel();
@@ -202,7 +235,7 @@ export default function VoiceRecorder({ userId, userName, onSaved, onCancel }: V
         };
 
         recognition.onend = () => {
-            if (isRecording && recognitionRef.current) {
+            if (isRecordingRef.current && recognitionRef.current) {
                 try { recognitionRef.current.start(); } catch (e) { console.log('Restart failed:', e); }
             }
         };
@@ -230,6 +263,7 @@ export default function VoiceRecorder({ userId, userName, onSaved, onCancel }: V
             }
             finalTranscriptRef.current = '';
             setLiveTranscript('');
+            isRecordingRef.current = true;
             setIsRecording(true);
             setInputMode('recording');
             startTimer();
@@ -241,6 +275,7 @@ export default function VoiceRecorder({ userId, userName, onSaved, onCancel }: V
     };
 
     const stopRecording = async () => {
+        isRecordingRef.current = false;
         setIsRecording(false);
         stopTimer();
         stopAudioLevelMonitoring();
@@ -620,24 +655,27 @@ export default function VoiceRecorder({ userId, userName, onSaved, onCancel }: V
                             </div>
                         </div>
 
-                        {/* Live transcript */}
-                        {liveTranscript && (
-                            <div className="mb-8 p-4 bg-slate-50 rounded-[12px] border border-slate-200 max-h-32 overflow-y-auto">
-                                <p className="text-[13px] text-slate-500 text-left whitespace-pre-wrap leading-[1.6]">{liveTranscript}</p>
-                            </div>
-                        )}
-
-                        {/* Audio level */}
-                        <div className="space-y-3 mb-10">
-                            <div className="flex items-center justify-center gap-[3px] h-12">
-                                {[...Array(20)].map((_, i) => {
-                                    const offset = Math.abs(10 - i) / 10;
-                                    const baseHeight = 3 + (1 - offset) * audioLevel * 0.4;
-                                    return (
-                                        <div key={i} className="w-[3px] bg-violet-500 rounded-full transition-all duration-75"
-                                            style={{ height: `${Math.max(3, baseHeight)}px`, opacity: 0.2 + (audioLevel / 100) * 0.8 }} />
-                                    );
-                                })}
+                        {/* Audio level - mirror waveform (center = loudest) */}
+                        <div className="mb-10">
+                            <div className="flex items-center justify-center gap-[2px] h-20">
+                                {(() => {
+                                    const bars = barLevelsRef.current;
+                                    const half = Math.floor(bars.length / 2);
+                                    const mirrored: number[] = [];
+                                    for (let i = half - 1; i >= 0; i--) mirrored.push(bars[i]);
+                                    for (let i = 0; i < half; i++) mirrored.push(bars[i]);
+                                    return mirrored.map((barLevel, i) => {
+                                        const h = 3 + (barLevel / 100) * 72;
+                                        const intensity = Math.min(1, barLevel / 40);
+                                        return (
+                                            <div key={i} className="w-[3px] rounded-full"
+                                                style={{
+                                                    height: `${Math.max(3, h)}px`,
+                                                    backgroundColor: `rgba(124, 58, 237, ${0.2 + intensity * 0.8})`,
+                                                }} />
+                                        );
+                                    });
+                                })()}
                             </div>
                         </div>
 
