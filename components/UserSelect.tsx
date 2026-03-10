@@ -326,7 +326,7 @@ export default function UserSelect({ onSelect }: UserSelectProps) {
                     <h1 className="font-extrabold text-[26px] bg-gradient-to-r from-violet-800 to-violet-500 bg-clip-text text-transparent tracking-[-0.5px]">
                         Pocket Yasunobu
                     </h1>
-                    <span className="text-[11px] text-slate-400 font-mono">v1.12.5</span>
+                    <span className="text-[11px] text-slate-300 font-mono select-all">v0.1.0 / {process.env.NEXT_PUBLIC_GIT_HASH || 'dev'}</span>
                 </div>
                 <p className="text-slate-400 text-[13px]">AI議事録アシスタント</p>
             </div>
