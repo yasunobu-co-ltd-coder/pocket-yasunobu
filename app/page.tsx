@@ -341,7 +341,7 @@ export default function Page() {
                     <p className="text-[15px] text-slate-600 leading-[1.8] whitespace-pre-wrap">{selectedHomeRecord.summary}</p>
                   </div>
 
-                  {/* PDF / Edit / Delete buttons */}
+                  {/* PDF / Edit buttons */}
                   <div className="pt-2 space-y-3">
                     <button
                       onClick={() => generateMinutesPdf({
@@ -361,31 +361,6 @@ export default function Page() {
                     }}
                       className="w-full bg-slate-100 text-slate-600 font-bold py-4 rounded-[14px] text-[15px] hover:bg-violet-50 hover:text-violet-600 transition-all active:scale-[0.97]">
                       編集する
-                    </button>
-                    <button
-                      onClick={async () => {
-                        if (!confirm('この議事録をデータベースから完全に削除します。\nこの操作は取り消せません。\n\n本当に削除しますか？')) return;
-                        setIsHomeDeleting(true);
-                        try {
-                          const { error: deleteError } = await supabase
-                            .from('pocket-yasunobu')
-                            .delete()
-                            .eq('id', selectedHomeRecord.id);
-                          if (deleteError) throw deleteError;
-                          setHomeRecords(homeRecords.filter(r => r.id !== selectedHomeRecord.id));
-                          setSelectedHomeRecord(null);
-                          setRefreshTrigger(prev => prev + 1);
-                        } catch (e: unknown) {
-                          const msg = e instanceof Error ? e.message : '削除エラー';
-                          alert('削除失敗: ' + msg);
-                        } finally {
-                          setIsHomeDeleting(false);
-                        }
-                      }}
-                      disabled={isHomeDeleting}
-                      className="w-full bg-red-50 text-red-500 font-bold py-4 rounded-[14px] text-[15px] hover:bg-red-100 transition-all active:scale-[0.97] flex items-center justify-center gap-2 disabled:opacity-50 border border-red-100">
-                      {isHomeDeleting ? <Loader2 className="w-5 h-5 animate-spin" /> : <Trash2 className="w-5 h-5" />}
-                      削除する
                     </button>
                   </div>
                 </>
