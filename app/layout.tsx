@@ -1,5 +1,6 @@
 import type { Metadata, Viewport } from 'next';
 import './globals.css';
+import { ServiceWorkerRegistration } from './components/ServiceWorkerRegistration';
 
 export const metadata: Metadata = {
   title: 'Pocket Yasunobu',
@@ -37,7 +38,10 @@ export default function RootLayout({
           rel="stylesheet"
         />
       </head>
-      <body className="max-w-[600px] mx-auto min-h-screen relative">{children}</body>
+      <body className="max-w-[600px] mx-auto min-h-screen relative">
+        <ServiceWorkerRegistration />
+        {children}
+      </body>
     </html>
   );
 }
