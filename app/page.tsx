@@ -1,11 +1,12 @@
 'use client';
 
 import { useState, useEffect, useMemo } from 'react';
-import { Mic, LogOut, Home, List, Search, ChevronRight, FileText, X, User } from 'lucide-react';
+import { Mic, LogOut, Home, List, Search, ChevronRight, FileText, X, User, Download, Save, Loader2, Trash2 } from 'lucide-react';
 import UserSelect, { UserData } from '@/components/UserSelect';
 import HistoryList from '@/components/HistoryList';
 import VoiceRecorder from '@/components/VoiceRecorder';
 import { supabase } from '@/lib/supabase';
+import { generateMinutesPdf } from '@/lib/generate-pdf';
 
 type Tab = 'home' | 'history';
 type Mode = 'idle' | 'voice';
@@ -31,6 +32,13 @@ export default function Page() {
   const [homeSearch, setHomeSearch] = useState('');
   const [historySearch, setHistorySearch] = useState('');
   const [selectedHomeRecord, setSelectedHomeRecord] = useState<MinutesRecord | null>(null);
+
+  // Home modal edit state
+  const [isHomeEditing, setIsHomeEditing] = useState(false);
+  const [homeEditClientName, setHomeEditClientName] = useState('');
+  const [homeEditSummary, setHomeEditSummary] = useState('');
+  const [isHomeSaving, setIsHomeSaving] = useState(false);
+  const [isHomeDeleting, setIsHomeDeleting] = useState(false);
 
   const handleUserSelect = (user: UserData) => setCurrentUser(user);
 
@@ -261,11 +269,11 @@ export default function Page() {
       {/* ===== Detail Modal (Home) ===== */}
       {selectedHomeRecord && (
         <div className="fixed inset-0 bg-black/50 z-[100] flex items-center justify-center p-5"
-          onClick={(e) => { if (e.target === e.currentTarget) setSelectedHomeRecord(null); }}>
+          onClick={(e) => { if (e.target === e.currentTarget) { setSelectedHomeRecord(null); setIsHomeEditing(false); } }}>
           <div className="bg-white rounded-[20px] w-full max-w-[440px] max-h-[80vh] overflow-y-auto shadow-xl">
             <div className="sticky top-0 bg-white rounded-t-[20px] px-7 pt-7 pb-5 border-b border-slate-100 flex items-center justify-between">
               <h2 className="text-[20px] font-bold text-slate-800">議事録詳細</h2>
-              <button onClick={() => setSelectedHomeRecord(null)}
+              <button onClick={() => { setSelectedHomeRecord(null); setIsHomeEditing(false); }}
                 className="w-9 h-9 rounded-full bg-slate-100 flex items-center justify-center hover:bg-slate-200 transition-colors">
                 <X className="w-5 h-5 text-slate-500" />
               </button>
@@ -274,18 +282,114 @@ export default function Page() {
               <div className="text-[13px] text-slate-400 font-medium">
                 作成: {formatTimestamp(selectedHomeRecord.created_at)}
               </div>
-              <div>
-                <label className="block text-[13px] font-bold text-slate-400 uppercase tracking-[0.5px] mb-2">顧客名</label>
-                <p className="text-[19px] font-bold text-slate-800">{selectedHomeRecord.client_name || '名称なし'}</p>
-              </div>
-              <div className="flex items-center gap-2">
-                <User className="w-4 h-4 text-slate-400" />
-                <span className="text-[14px] text-slate-500">{selectedHomeRecord.user?.name ?? '不明'}</span>
-              </div>
-              <div>
-                <label className="block text-[13px] font-bold text-slate-400 uppercase tracking-[0.5px] mb-3">内容</label>
-                <p className="text-[15px] text-slate-600 leading-[1.8] whitespace-pre-wrap">{selectedHomeRecord.summary}</p>
-              </div>
+
+              {isHomeEditing ? (
+                <>
+                  <div>
+                    <label className="block text-[13px] font-bold text-slate-400 uppercase tracking-[0.5px] mb-3">顧客名</label>
+                    <input type="text" value={homeEditClientName} onChange={(e) => setHomeEditClientName(e.target.value)}
+                      className="w-full bg-slate-50 border border-slate-200 rounded-[12px] px-5 py-4 text-[16px] text-slate-700 focus:border-violet-400 focus:bg-white focus:shadow-[0_0_0_4px_rgba(124,58,237,0.1)] outline-none transition-all" />
+                  </div>
+                  <div>
+                    <label className="block text-[13px] font-bold text-slate-400 uppercase tracking-[0.5px] mb-3">内容</label>
+                    <textarea value={homeEditSummary} onChange={(e) => setHomeEditSummary(e.target.value)} rows={8}
+                      className="w-full bg-slate-50 border border-slate-200 rounded-[12px] px-5 py-4 text-[15px] text-slate-700 leading-[1.7] focus:border-violet-400 focus:bg-white focus:shadow-[0_0_0_4px_rgba(124,58,237,0.1)] outline-none resize-none transition-all" />
+                  </div>
+                  <div className="flex gap-3 pt-2">
+                    <button onClick={() => setIsHomeEditing(false)}
+                      className="flex-1 bg-slate-100 text-slate-600 font-bold py-4 rounded-[14px] text-[15px] transition-colors hover:bg-slate-200">
+                      キャンセル
+                    </button>
+                    <button onClick={async () => {
+                      setIsHomeSaving(true);
+                      try {
+                        const { error: updateError } = await supabase
+                          .from('pocket-yasunobu')
+                          .update({ client_name: homeEditClientName, summary: homeEditSummary })
+                          .eq('id', selectedHomeRecord.id);
+                        if (updateError) throw updateError;
+                        const updated = { ...selectedHomeRecord, client_name: homeEditClientName, summary: homeEditSummary };
+                        setHomeRecords(homeRecords.map(r => r.id === selectedHomeRecord.id ? updated : r));
+                        setSelectedHomeRecord(updated);
+                        setIsHomeEditing(false);
+                      } catch (e: unknown) {
+                        const msg = e instanceof Error ? e.message : '保存エラー';
+                        alert('保存失敗: ' + msg);
+                      } finally {
+                        setIsHomeSaving(false);
+                      }
+                    }} disabled={isHomeSaving}
+                      className="flex-1 text-white font-bold py-4 rounded-[14px] text-[15px] transition-transform active:scale-[0.97] flex items-center justify-center gap-2 disabled:opacity-50"
+                      style={{ background: 'linear-gradient(135deg, #7c3aed 0%, #6d28d9 100%)' }}>
+                      {isHomeSaving ? <Loader2 className="w-5 h-5 animate-spin" /> : <Save className="w-5 h-5" />}
+                      保存
+                    </button>
+                  </div>
+                </>
+              ) : (
+                <>
+                  <div>
+                    <label className="block text-[13px] font-bold text-slate-400 uppercase tracking-[0.5px] mb-2">顧客名</label>
+                    <p className="text-[19px] font-bold text-slate-800">{selectedHomeRecord.client_name || '名称なし'}</p>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <User className="w-4 h-4 text-slate-400" />
+                    <span className="text-[14px] text-slate-500">{selectedHomeRecord.user?.name ?? '不明'}</span>
+                  </div>
+                  <div>
+                    <label className="block text-[13px] font-bold text-slate-400 uppercase tracking-[0.5px] mb-3">内容</label>
+                    <p className="text-[15px] text-slate-600 leading-[1.8] whitespace-pre-wrap">{selectedHomeRecord.summary}</p>
+                  </div>
+
+                  {/* PDF / Edit / Delete buttons */}
+                  <div className="pt-2 space-y-3">
+                    <button
+                      onClick={() => generateMinutesPdf({
+                        customerName: selectedHomeRecord.client_name || '',
+                        createdAt: selectedHomeRecord.created_at,
+                        creatorName: selectedHomeRecord.user?.name,
+                        summary: selectedHomeRecord.summary,
+                      })}
+                      className="w-full bg-violet-50 text-violet-600 font-bold py-4 rounded-[14px] text-[15px] hover:bg-violet-100 transition-all active:scale-[0.97] flex items-center justify-center gap-2">
+                      <Download className="w-5 h-5" />
+                      PDFで出力
+                    </button>
+                    <button onClick={() => {
+                      setIsHomeEditing(true);
+                      setHomeEditClientName(selectedHomeRecord.client_name || '');
+                      setHomeEditSummary(selectedHomeRecord.summary || '');
+                    }}
+                      className="w-full bg-slate-100 text-slate-600 font-bold py-4 rounded-[14px] text-[15px] hover:bg-violet-50 hover:text-violet-600 transition-all active:scale-[0.97]">
+                      編集する
+                    </button>
+                    <button
+                      onClick={async () => {
+                        if (!confirm('この議事録をデータベースから完全に削除します。\nこの操作は取り消せません。\n\n本当に削除しますか？')) return;
+                        setIsHomeDeleting(true);
+                        try {
+                          const { error: deleteError } = await supabase
+                            .from('pocket-yasunobu')
+                            .delete()
+                            .eq('id', selectedHomeRecord.id);
+                          if (deleteError) throw deleteError;
+                          setHomeRecords(homeRecords.filter(r => r.id !== selectedHomeRecord.id));
+                          setSelectedHomeRecord(null);
+                          setRefreshTrigger(prev => prev + 1);
+                        } catch (e: unknown) {
+                          const msg = e instanceof Error ? e.message : '削除エラー';
+                          alert('削除失敗: ' + msg);
+                        } finally {
+                          setIsHomeDeleting(false);
+                        }
+                      }}
+                      disabled={isHomeDeleting}
+                      className="w-full bg-red-50 text-red-500 font-bold py-4 rounded-[14px] text-[15px] hover:bg-red-100 transition-all active:scale-[0.97] flex items-center justify-center gap-2 disabled:opacity-50 border border-red-100">
+                      {isHomeDeleting ? <Loader2 className="w-5 h-5 animate-spin" /> : <Trash2 className="w-5 h-5" />}
+                      削除する
+                    </button>
+                  </div>
+                </>
+              )}
             </div>
           </div>
         </div>
