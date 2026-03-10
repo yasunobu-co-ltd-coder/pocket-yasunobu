@@ -1,8 +1,9 @@
 'use client';
 
 import { useState, useEffect, useMemo } from 'react';
-import { Loader2, FileText, X, Save, User, Search, Trash2 } from 'lucide-react';
+import { Loader2, FileText, X, Save, User, Search, Trash2, Download } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
+import { generateMinutesPdf } from '@/lib/generate-pdf';
 
 type Filter = '全件' | '自分の作成';
 
@@ -50,11 +51,28 @@ export default function HistoryList({ userId, userName, refreshTrigger, initialS
             try {
                 const { data, error: fetchError } = await supabase
                     .from('pocket-yasunobu')
-                    .select('*, user:users!pocket-yasunobu_user_id_fkey(name)')
+                    .select('*')
                     .order('created_at', { ascending: false })
                     .limit(50);
                 if (fetchError) throw fetchError;
-                setRecords((data as unknown as MinutesRecord[]) || []);
+
+                // ユーザー名を別途取得してマッピング
+                const userIds = [...new Set((data || []).map((r: MinutesRecord) => r.user_id).filter(Boolean))];
+                let userMap: Record<string, string> = {};
+                if (userIds.length > 0) {
+                    const { data: usersData } = await supabase
+                        .from('users')
+                        .select('id, name')
+                        .in('id', userIds);
+                    if (usersData) {
+                        userMap = Object.fromEntries(usersData.map((u: { id: string; name: string }) => [u.id, u.name]));
+                    }
+                }
+                const recordsWithUser = (data || []).map((r: MinutesRecord) => ({
+                    ...r,
+                    user: r.user_id && userMap[r.user_id] ? { name: userMap[r.user_id] } : null,
+                }));
+                setRecords(recordsWithUser as MinutesRecord[]);
             } catch (e: unknown) {
                 console.error('Fetch records error:', e);
                 const msg = e instanceof Error ? e.message : 'データ取得エラー';
@@ -317,8 +335,19 @@ export default function HistoryList({ userId, userName, refreshTrigger, initialS
                                         <p className="text-[15px] text-slate-600 leading-[1.8] whitespace-pre-wrap">{selectedRecord.summary}</p>
                                     </div>
 
-                                    {/* Edit / Delete buttons */}
+                                    {/* PDF / Edit / Delete buttons */}
                                     <div className="pt-2 space-y-3">
+                                        <button
+                                            onClick={() => generateMinutesPdf({
+                                                customerName: selectedRecord.client_name || '',
+                                                createdAt: selectedRecord.created_at,
+                                                creatorName: selectedRecord.user?.name,
+                                                summary: selectedRecord.summary,
+                                            })}
+                                            className="w-full bg-violet-50 text-violet-600 font-bold py-4 rounded-[14px] text-[15px] hover:bg-violet-100 transition-all active:scale-[0.97] flex items-center justify-center gap-2">
+                                            <Download className="w-5 h-5" />
+                                            PDFで出力
+                                        </button>
                                         <button onClick={() => startEdit(selectedRecord)}
                                             className="w-full bg-slate-100 text-slate-600 font-bold py-4 rounded-[14px] text-[15px] hover:bg-violet-50 hover:text-violet-600 transition-all active:scale-[0.97]">
                                             編集する

@@ -1,9 +1,10 @@
 'use client';
 
 import { useState, useRef, useEffect } from 'react';
-import { Mic, Square, Save, Loader2, Check, Upload, FileAudio, ArrowLeft, ChevronRight } from 'lucide-react';
+import { Mic, Square, Save, Loader2, Check, Upload, FileAudio, ArrowLeft, ChevronRight, Download } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 import { splitAudioIntoChunks, transcribeChunksParallel } from '@/lib/audio-chunker';
+import { generateMinutesPdf } from '@/lib/generate-pdf';
 
 interface VoiceRecorderProps {
     userId: string;
@@ -621,6 +622,21 @@ export default function VoiceRecorder({ userId, userName, onSaved, onCancel }: V
                                 </div>
                             )}
                         </div>
+
+                        {/* PDF export button */}
+                        <button
+                            onClick={() => generateMinutesPdf({
+                                customerName: customer || result.customer || '',
+                                summary: result.summary,
+                                decisions: result.decisions,
+                                todos: result.todos,
+                                nextSchedule: result.nextSchedule,
+                                keywords: result.keywords,
+                            })}
+                            className="w-full bg-slate-100 text-slate-600 font-bold py-4 rounded-[14px] text-[15px] hover:bg-violet-50 hover:text-violet-600 transition-all active:scale-[0.97] flex items-center justify-center gap-2">
+                            <Download className="w-5 h-5" />
+                            PDFで出力
+                        </button>
 
                         {/* Save button */}
                         <button onClick={saveMinutes}

@@ -49,15 +49,32 @@ export default function Page() {
   // Fetch records for home dashboard
   useEffect(() => {
     if (!currentUser) return;
-    const fetch = async () => {
+    const fetchData = async () => {
       const { data } = await supabase
         .from('pocket-yasunobu')
-        .select('*, user:users!pocket-yasunobu_user_id_fkey(name)')
+        .select('*')
         .order('created_at', { ascending: false })
         .limit(50);
-      setHomeRecords((data as unknown as MinutesRecord[]) || []);
+
+      // ユーザー名を別途取得してマッピング
+      const userIds = [...new Set((data || []).map((r: MinutesRecord) => r.user_id).filter(Boolean))];
+      let userMap: Record<string, string> = {};
+      if (userIds.length > 0) {
+        const { data: usersData } = await supabase
+          .from('users')
+          .select('id, name')
+          .in('id', userIds);
+        if (usersData) {
+          userMap = Object.fromEntries(usersData.map((u: { id: string; name: string }) => [u.id, u.name]));
+        }
+      }
+      const recordsWithUser = (data || []).map((r: MinutesRecord) => ({
+        ...r,
+        user: r.user_id && userMap[r.user_id] ? { name: userMap[r.user_id] } : null,
+      }));
+      setHomeRecords(recordsWithUser as MinutesRecord[]);
     };
-    fetch();
+    fetchData();
   }, [currentUser, refreshTrigger]);
 
   // Recent 3 records

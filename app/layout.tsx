@@ -10,6 +10,20 @@ export const metadata: Metadata = {
     icon: '/annyan.png',
     apple: '/annyan.png',
   },
+  openGraph: {
+    title: 'Pocket Yasunobu',
+    description: '音声から議事録を自動生成',
+    siteName: 'Pocket Yasunobu',
+    images: [{ url: '/annyan.png', width: 512, height: 512, alt: 'Pocket Yasunobu' }],
+    locale: 'ja_JP',
+    type: 'website',
+  },
+  twitter: {
+    card: 'summary',
+    title: 'Pocket Yasunobu',
+    description: '音声から議事録を自動生成',
+    images: ['/annyan.png'],
+  },
   appleWebApp: {
     capable: true,
     statusBarStyle: 'default',
