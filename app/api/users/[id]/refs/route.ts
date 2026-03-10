@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { supabaseAdmin } from '@/lib/supabase';
+import { getSupabaseAdmin } from '@/lib/supabase';
 
 export async function GET(
   _req: Request,
@@ -32,7 +32,7 @@ export async function GET(
 
     const results = await Promise.all(
       queryDefs.map(q =>
-        supabaseAdmin.from(q.table).select('*', { count: 'exact', head: true }).eq(q.col, userId)
+        getSupabaseAdmin().from(q.table).select('*', { count: 'exact', head: true }).eq(q.col, userId)
       )
     );
 
