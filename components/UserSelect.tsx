@@ -306,6 +306,9 @@ export default function UserSelect({ onSelect }: UserSelectProps) {
                         確認
                     </button>
                 </div>
+                <p className="mt-6 text-slate-300 text-[11px] select-all">
+                    v0.1.0 / {process.env.NEXT_PUBLIC_GIT_HASH || 'dev'}
+                </p>
             </div>
         );
     }

@@ -474,7 +474,6 @@ export default function VoiceRecorder({ userId, userName, onSaved, onCancel }: V
                 .from('pocket-yasunobu')
                 .insert({
                     user_id: userId,
-                    user_name: userName,
                     client_name: customer || result.customer || '名称なし',
                     transcript: editableTranscript,
                     summary: formattedMemo,
