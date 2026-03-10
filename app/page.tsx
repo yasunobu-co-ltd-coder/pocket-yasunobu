@@ -7,6 +7,7 @@ import HistoryList from '@/components/HistoryList';
 import VoiceRecorder from '@/components/VoiceRecorder';
 import { supabase } from '@/lib/supabase';
 import { generateMinutesPdf } from '@/lib/generate-pdf';
+import TTSPlayer from '@/components/TTSPlayer';
 
 type Tab = 'home' | 'history';
 type Mode = 'idle' | 'voice';
@@ -354,6 +355,9 @@ export default function Page() {
                       <Download className="w-5 h-5" />
                       PDFで出力
                     </button>
+                    {/* TTS Player */}
+                    <TTSPlayer minuteId={selectedHomeRecord.id} summaryText={selectedHomeRecord.summary} />
+
                     <button onClick={() => {
                       setIsHomeEditing(true);
                       setHomeEditClientName(selectedHomeRecord.client_name || '');

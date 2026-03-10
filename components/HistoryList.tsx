@@ -4,6 +4,7 @@ import { useState, useEffect, useMemo } from 'react';
 import { Loader2, FileText, X, Save, User, Search, Trash2, Download } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 import { generateMinutesPdf } from '@/lib/generate-pdf';
+import TTSPlayer from './TTSPlayer';
 
 type Filter = '全件' | '自分の作成';
 
@@ -348,6 +349,9 @@ export default function HistoryList({ userId, userName, refreshTrigger, initialS
                                             <Download className="w-5 h-5" />
                                             PDFで出力
                                         </button>
+                                        {/* TTS Player */}
+                                        <TTSPlayer minuteId={selectedRecord.id} summaryText={selectedRecord.summary} />
+
                                         <button onClick={() => startEdit(selectedRecord)}
                                             className="w-full bg-slate-100 text-slate-600 font-bold py-4 rounded-[14px] text-[15px] hover:bg-violet-50 hover:text-violet-600 transition-all active:scale-[0.97]">
                                             編集する
