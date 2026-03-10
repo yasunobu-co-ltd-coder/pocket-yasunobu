@@ -1,21 +1,37 @@
 /**
  * TTS用テキスト分割ユーティリティ
- * 議事録テキストを800〜1200文字のチャンクに分割する
- * 文の区切り（。！？\n）を優先して自然な位置で分割
+ * 議事録テキストを200〜300文字のチャンクに分割する
+ * VOICEVOXの推論メモリを抑えるため小さめのチャンクサイズ
+ * 文の区切り（。！？\n）や見出し記号を優先して自然な位置で分割
  */
 
-const MIN_CHUNK_SIZE = 800;
-const MAX_CHUNK_SIZE = 1200;
+const MIN_CHUNK_SIZE = 200;
+const MAX_CHUNK_SIZE = 300;
 
-// 文の区切りとして認識する文字
-const SENTENCE_DELIMITERS = ['。', '！', '？', '!\n', '?\n', '\n\n'];
+// 文の区切りとして認識する文字（優先度順）
+const SENTENCE_DELIMITERS = ['\n\n', '\n', '。', '！', '？', '、'];
+
+/**
+ * テキストの前処理：不要な記号や連続改行を正規化
+ */
+function normalizeText(text: string): string {
+  return text
+    .replace(/\r\n/g, '\n')
+    // 連続改行を最大2つに
+    .replace(/\n{3,}/g, '\n\n')
+    // 連続スペース・タブを1つに
+    .replace(/[ \t]+/g, ' ')
+    // 見出し記号の前に改行を確保（■●▶ など）
+    .replace(/([^\n])(■|●|▶|◆|★|【)/g, '$1\n$2')
+    .trim();
+}
 
 /**
  * テキストを自然な文の区切りでチャンクに分割する
  */
 export function splitTextIntoChunks(text: string): string[] {
-  // 空白・改行を正規化
-  const normalized = text.replace(/\r\n/g, '\n').trim();
+  // 前処理：不要な記号・連続改行を正規化
+  const normalized = normalizeText(text);
 
   if (!normalized) return [];
   if (normalized.length <= MAX_CHUNK_SIZE) return [normalized];

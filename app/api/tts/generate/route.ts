@@ -121,8 +121,11 @@ async function processGeneration(
     const chunks = splitTextIntoChunks(text);
     let totalDuration = 0;
 
+    console.log(`[TTS] 合計 ${chunks.length} チャンクに分割`);
+
     for (let i = 0; i < chunks.length; i++) {
       const chunkText = chunks[i];
+      console.log(`[TTS] chunk ${i}/${chunks.length - 1}: ${chunkText.length} 文字`);
 
       // VOICEVOX: audio_query 作成
       const queryRes = await fetch(
@@ -130,7 +133,9 @@ async function processGeneration(
         { method: 'POST' }
       );
       if (!queryRes.ok) {
-        throw new Error(`VOICEVOX audio_query failed: ${queryRes.status} ${await queryRes.text()}`);
+        const errBody = await queryRes.text();
+        console.error(`[TTS] audio_query failed for chunk ${i}: ${queryRes.status}`, errBody);
+        throw new Error(`VOICEVOX audio_query failed: ${queryRes.status} ${errBody}`);
       }
       const audioQuery = await queryRes.json();
 
@@ -144,7 +149,13 @@ async function processGeneration(
         }
       );
       if (!synthRes.ok) {
-        throw new Error(`VOICEVOX synthesis failed: ${synthRes.status} ${await synthRes.text()}`);
+        const errBody = await synthRes.text();
+        console.error(`[TTS] synthesis failed for chunk ${i}: ${synthRes.status}`, errBody);
+        // メモリ不足の判定
+        if (errBody.includes('allocate memory') || errBody.includes('out of memory') || errBody.includes('OOM') || synthRes.status === 500) {
+          throw new Error(`音声生成サーバーのメモリ不足の可能性があります（chunk ${i}, ${chunkText.length}文字）`);
+        }
+        throw new Error(`VOICEVOX synthesis failed: ${synthRes.status} ${errBody}`);
       }
 
       const wavBuffer = await synthRes.arrayBuffer();
