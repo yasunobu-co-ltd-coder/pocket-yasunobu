@@ -578,7 +578,7 @@ export default function VoiceRecorder({ userId, userName, onSaved, onCancel }: V
                     <div className="p-6 space-y-5">
                         {/* Customer name input */}
                         <div>
-                            <label className="block text-[12px] font-bold text-slate-400 uppercase tracking-[0.5px] mb-2">顧客名</label>
+                            <label className="block text-[12px] font-bold text-slate-400 uppercase tracking-[0.5px] mb-2">会議名</label>
                             <input type="text" value={customer} onChange={(e) => setCustomer(e.target.value)}
                                 className="w-full bg-slate-50 border border-slate-200 rounded-[12px] px-4 py-3.5 text-[16px] text-slate-700 focus:border-violet-400 focus:bg-white focus:shadow-[0_0_0_4px_rgba(124,58,237,0.1)] outline-none transition-all" />
                         </div>
@@ -626,7 +626,7 @@ export default function VoiceRecorder({ userId, userName, onSaved, onCancel }: V
                         {/* PDF export button */}
                         <button
                             onClick={() => generateMinutesPdf({
-                                customerName: customer || result.customer || '',
+                                meetingName: customer || result.customer || '',
                                 summary: result.summary,
                                 decisions: result.decisions,
                                 todos: result.todos,

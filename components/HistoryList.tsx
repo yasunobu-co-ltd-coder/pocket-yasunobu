@@ -293,7 +293,7 @@ export default function HistoryList({ userId, userName, refreshTrigger, initialS
                                 /* ===== Edit Mode ===== */
                                 <>
                                     <div>
-                                        <label className="block text-[13px] font-bold text-slate-400 uppercase tracking-[0.5px] mb-3">顧客名</label>
+                                        <label className="block text-[13px] font-bold text-slate-400 uppercase tracking-[0.5px] mb-3">会議名</label>
                                         <input type="text" value={editClientName} onChange={(e) => setEditClientName(e.target.value)}
                                             className="w-full bg-slate-50 border border-slate-200 rounded-[12px] px-5 py-4 text-[16px] text-slate-700 focus:border-violet-400 focus:bg-white focus:shadow-[0_0_0_4px_rgba(124,58,237,0.1)] outline-none transition-all" />
                                     </div>
@@ -320,7 +320,7 @@ export default function HistoryList({ userId, userName, refreshTrigger, initialS
                                 <>
                                     {/* Client name */}
                                     <div>
-                                        <label className="block text-[13px] font-bold text-slate-400 uppercase tracking-[0.5px] mb-2">顧客名</label>
+                                        <label className="block text-[13px] font-bold text-slate-400 uppercase tracking-[0.5px] mb-2">会議名</label>
                                         <p className="text-[19px] font-bold text-slate-800">{selectedRecord.client_name || '名称なし'}</p>
                                     </div>
 
@@ -340,7 +340,7 @@ export default function HistoryList({ userId, userName, refreshTrigger, initialS
                                     <div className="pt-2 space-y-3">
                                         <button
                                             onClick={() => generateMinutesPdf({
-                                                customerName: selectedRecord.client_name || '',
+                                                meetingName: selectedRecord.client_name || '',
                                                 createdAt: selectedRecord.created_at,
                                                 creatorName: selectedRecord.user?.name,
                                                 summary: selectedRecord.summary,

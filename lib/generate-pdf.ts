@@ -2,7 +2,7 @@ import jsPDF from 'jspdf';
 import html2canvas from 'html2canvas';
 
 interface PdfMinutesData {
-    customerName: string;
+    meetingName: string;
     createdAt?: string;
     creatorName?: string;
     summary: string;
@@ -50,8 +50,8 @@ export async function generateMinutesPdf(data: PdfMinutesData): Promise<void> {
 
         <table style="width: 100%; border-collapse: collapse; margin-bottom: 28px; font-size: 14px;">
             <tr>
-                <td style="padding: 10px 16px; background: #f8fafc; border: 1px solid #e2e8f0; font-weight: 700; width: 100px; color: #64748b;">顧客名</td>
-                <td style="padding: 10px 16px; border: 1px solid #e2e8f0;">${escapeHtml(data.customerName || '名称なし')}</td>
+                <td style="padding: 10px 16px; background: #f8fafc; border: 1px solid #e2e8f0; font-weight: 700; width: 100px; color: #64748b;">会議名</td>
+                <td style="padding: 10px 16px; border: 1px solid #e2e8f0;">${escapeHtml(data.meetingName || '名称なし')}</td>
             </tr>
             <tr>
                 <td style="padding: 10px 16px; background: #f8fafc; border: 1px solid #e2e8f0; font-weight: 700; color: #64748b;">作成日</td>
@@ -185,7 +185,7 @@ export async function generateMinutesPdf(data: PdfMinutesData): Promise<void> {
             );
         }
 
-        const fileName = `議事録_${data.customerName || '名称なし'}_${dateStr.replace(/\//g, '')}.pdf`;
+        const fileName = `議事録_${data.meetingName || '名称なし'}_${dateStr.replace(/\//g, '')}.pdf`;
         pdf.save(fileName);
     } finally {
         document.body.removeChild(container);

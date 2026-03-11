@@ -338,7 +338,7 @@ async function generateFinalMinutes(
 
 出力形式:
 {
-  "customer": "顧客名・会社名（不明な場合は空文字）",
+  "customer": "会議名（不明な場合は空文字）",
   "project": "案件名・用件（推測できる場合）",
   "summary": "議事録の本文（以下の構造で記述）",
   "decisions": ["決定事項1", "決定事項2"],

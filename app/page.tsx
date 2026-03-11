@@ -287,7 +287,7 @@ export default function Page() {
               {isHomeEditing ? (
                 <>
                   <div>
-                    <label className="block text-[13px] font-bold text-slate-400 uppercase tracking-[0.5px] mb-3">顧客名</label>
+                    <label className="block text-[13px] font-bold text-slate-400 uppercase tracking-[0.5px] mb-3">会議名</label>
                     <input type="text" value={homeEditClientName} onChange={(e) => setHomeEditClientName(e.target.value)}
                       className="w-full bg-slate-50 border border-slate-200 rounded-[12px] px-5 py-4 text-[16px] text-slate-700 focus:border-violet-400 focus:bg-white focus:shadow-[0_0_0_4px_rgba(124,58,237,0.1)] outline-none transition-all" />
                   </div>
@@ -330,7 +330,7 @@ export default function Page() {
               ) : (
                 <>
                   <div>
-                    <label className="block text-[13px] font-bold text-slate-400 uppercase tracking-[0.5px] mb-2">顧客名</label>
+                    <label className="block text-[13px] font-bold text-slate-400 uppercase tracking-[0.5px] mb-2">会議名</label>
                     <p className="text-[19px] font-bold text-slate-800">{selectedHomeRecord.client_name || '名称なし'}</p>
                   </div>
                   <div className="flex items-center gap-2">
@@ -346,7 +346,7 @@ export default function Page() {
                   <div className="pt-2 space-y-3">
                     <button
                       onClick={() => generateMinutesPdf({
-                        customerName: selectedHomeRecord.client_name || '',
+                        meetingName: selectedHomeRecord.client_name || '',
                         createdAt: selectedHomeRecord.created_at,
                         creatorName: selectedHomeRecord.user?.name,
                         summary: selectedHomeRecord.summary,
