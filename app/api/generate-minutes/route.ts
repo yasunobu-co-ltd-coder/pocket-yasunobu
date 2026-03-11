@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import OpenAI from 'openai';
 
 export const runtime = 'nodejs';
-export const maxDuration = 120; // 4ステップLLM呼び出しのため延長
+export const maxDuration = 180; // 6ステップLLM呼び出しのため延長
 
 const openai = new OpenAI({
     apiKey: process.env.OPENAI_API_KEY,
@@ -213,21 +213,126 @@ async function extractInsights(normalizedTopics: Record<string, unknown>): Promi
     return parsed;
 }
 
+// ─── STEP2.5: 議題内容の深堀り展開 ───
+
+async function expandTopics(
+    normalizedTopics: Record<string, unknown>,
+    transcription: string,
+): Promise<Record<string, unknown>> {
+    console.log('[MINUTES] STEP2.5: 議題内容の深堀り展開 開始');
+    const systemPrompt = `あなたは会議分析の専門家です。
+以下の「議題一覧」と「元の文字起こし」を照合し、各議題の内容を大幅に詳細化してください。
+
+出力は必ず **有効なJSONのみ** を返してください。
+
+出力形式:
+{
+  "expandedTopics": [
+    {
+      "topic": "議題タイトル（そのまま維持）",
+      "background": "この議題が上がった背景・経緯（文字起こしから読み取れる範囲で）",
+      "discussionDetail": "何が話し合われたかの詳細（発言の要旨を時系列で。200〜400文字）",
+      "opinions": ["出された意見・提案1", "意見2"],
+      "comparisons": ["比較検討された選択肢があれば記述（例: A案 vs B案）"],
+      "conclusion": "結論（決まった場合）。未決なら「未決」と明記",
+      "openIssues": ["この議題に関する未解決事項"]
+    }
+  ]
+}
+
+ルール:
+- 元の文字起こしから具体的な発言内容を拾い上げる（要約ではなく詳細化）
+- 数字・固有名詞・日付・担当者名は必ず保持
+- 「誰が何と言ったか」を可能な限り含める
+- 情報の捏造は禁止
+- 文字起こしに含まれない情報は書かない
+- discussionDetailは200〜400文字で詳細に書く
+- opinionsは発言ベースで具体的に
+- comparisonsは選択肢の比較があった場合のみ記載`;
+
+    const userContent = JSON.stringify({
+        topics: normalizedTopics,
+        transcription: transcription.slice(0, 12000), // トークン制限対策
+    });
+
+    const result = await callLLM(systemPrompt, userContent, 6000);
+    const parsed = safeParse(result, { expandedTopics: [] });
+    console.log(`[MINUTES] STEP2.5完了: ${(parsed.expandedTopics as Array<unknown>)?.length || 0} 議題展開`);
+    return parsed;
+}
+
+// ─── STEP2.8: 論点構造抽出 ───
+
+async function extractDiscussionStructure(
+    expandedTopics: Record<string, unknown>,
+    insights: Record<string, unknown>,
+): Promise<Record<string, unknown>> {
+    console.log('[MINUTES] STEP2.8: 論点構造抽出 開始');
+    const systemPrompt = `あなたは論理的な議事録構造化の専門家です。
+以下の「展開済み議題」と「要点分析結果」をもとに、各議題の論点構造を整理してください。
+
+出力は必ず **有効なJSONのみ** を返してください。
+
+出力形式:
+{
+  "discussionStructures": [
+    {
+      "topic": "議題タイトル",
+      "mainPoints": [
+        {
+          "point": "論点（何が問題・テーマだったか）",
+          "arguments": ["この論点に対して出された意見・根拠1", "意見2"],
+          "counterArguments": ["反対意見・懸念があれば"],
+          "resolution": "この論点の結論（未決なら「未決」）"
+        }
+      ],
+      "decisionRationale": "最終的な決定の根拠・理由（なぜそう決まったか）",
+      "remainingQuestions": ["残された疑問・次回持ち越し事項"]
+    }
+  ]
+}
+
+ルール:
+- 各議題について1〜3個の論点(mainPoints)を抽出する
+- 論点は「何が問題だったか」「何を決める必要があったか」の形で記述
+- arguments/counterArgumentsは具体的な発言・根拠ベースで書く
+- 情報の捏造は禁止
+- 文字起こしに含まれない議論は書かない
+- decisionRationaleは「なぜそう決まったか」を明確に
+- 該当がなければ空配列`;
+
+    const userContent = JSON.stringify({
+        expandedTopics,
+        insights,
+    });
+
+    const result = await callLLM(systemPrompt, userContent, 5000);
+    const parsed = safeParse(result, { discussionStructures: [] });
+    console.log(`[MINUTES] STEP2.8完了: ${(parsed.discussionStructures as Array<unknown>)?.length || 0} 議題の論点構造抽出`);
+    return parsed;
+}
+
 // ─── STEP3: 議事録生成 ───
 
 async function generateFinalMinutes(
     normalizedTopics: Record<string, unknown>,
     insights: Record<string, unknown>,
+    expandedTopics: Record<string, unknown>,
+    discussionStructures: Record<string, unknown>,
 ): Promise<Record<string, unknown>> {
     console.log('[MINUTES] STEP3: 議事録生成 開始');
     const systemPrompt = `あなたはプロフェッショナルな議事録作成者です。
 以下の情報をもとに会議議事録を作成してください。
 
 入力データには以下が含まれます:
-- topics: 議題一覧
-- analysis: 要点分析結果
+- topics: 議題一覧（STEP1.5で補正済み）
+- analysis: 要点分析結果（STEP2）
   - analysis.confirmedTodos: 会議で明確に述べられたタスク
   - analysis.suggestedActions: 会話の流れ上必要と判断される次アクション
+- expandedTopics: 各議題の深堀り展開（STEP2.5）
+  - 背景、議論詳細、出された意見、比較検討、結論、未解決事項
+- discussionStructures: 各議題の論点構造（STEP2.8）
+  - 論点、賛成意見/反対意見、結論の根拠、残された疑問
 
 出力は **有効なJSONのみ** を返してください。
 
@@ -256,26 +361,24 @@ async function generateFinalMinutes(
    - 行動単位に分解する
    - 重複禁止
 
-■ summaryは以下の構造で記述してください:
+■ summaryは以下の構造で記述してください（4000〜7000文字の詳細な議事録）:
 
 ■会議概要
-会議の背景・目的を1〜2文で記述
+会議の背景・目的を2〜3文で記述（expandedTopicsのbackgroundを活用）
 
 ■主な議題
 
 ●議題1のタイトル
-・背景: なぜこの議題が上がったか
-・議論内容: 何が話し合われたか（具体的に）
-・結論: 何が決まったか（決まっていなければ「未決」と明記）
+・背景: なぜこの議題が上がったか（expandedTopicsのbackgroundから）
+・議論内容: 何が話し合われたか（expandedTopicsのdiscussionDetailを活用し、300〜500文字で詳細に記述）
+・論点: 何が問題・テーマだったか（discussionStructuresのmainPointsから）
+・出された意見: 参加者から出された意見・提案（expandedTopicsのopinions + discussionStructuresのarguments/counterArguments）
+・比較検討: 選択肢の比較があれば（expandedTopicsのcomparisons）
+・結論: 何が決まったか（決まっていなければ「未決」と明記。決定の根拠も記載）
+・残課題: この議題に残る未解決事項（expandedTopicsのopenIssues + discussionStructuresのremainingQuestions）
 ・次アクション: この議題から派生する次のアクション（あれば）
 
-●議題2のタイトル
-・背景: なぜこの議題が上がったか
-・議論内容: 何が話し合われたか（具体的に）
-・結論: 何が決まったか
-・次アクション: この議題から派生する次のアクション（あれば）
-
-（議題ごとに●で区切る。各議題は上記4項目を含めること）
+（議題ごとに●で区切る。各議題は上記の項目を含めること。該当がない項目は省略可）
 
 ■重要ポイント
 戦略的に重要な内容をまとめる（なぜ重要かの理由も補足する）
@@ -284,24 +387,28 @@ async function generateFinalMinutes(
 未解決課題や懸念事項（何にどう影響するかを明記する）
 
 ルール:
-- summaryはA4用紙2〜3枚分（2000〜3000文字程度）の詳細な内容
+- summaryは4000〜7000文字の詳細な議事録（A4用紙4〜6枚分）
+- expandedTopicsとdiscussionStructuresの情報を最大限活用して密度の高い記述にする
 - 会話順ではなく意味で整理
-- 冗長な会話は削除し、要点を残す
+- 冗長な繰り返しは避けるが、具体的な議論内容は省略しない
 - 数字・固有名詞・日付・担当者名は保持
 - 決まっていないことを決定事項にしない（「未決」と明記する）
 - 情報の捏造禁止（ただし会話の流れ上自然な具体化は許容）
 - 該当情報がない項目は空配列・空文字
 - nextScheduleは日付がわかる場合はYYYY年MM月DD日形式で記載
 - 目的は「読みやすい要約」ではなく「後から読んだ人がそのまま動ける議事録」にすること
+- 各議題の議論内容は必ず300文字以上書くこと
 
 今日の日付は ${TODAY()} です。`;
 
     const userContent = JSON.stringify({
         topics: normalizedTopics,
         analysis: insights,
+        expandedTopics,
+        discussionStructures,
     });
 
-    const result = await callLLM(systemPrompt, userContent, 8000);
+    const result = await callLLM(systemPrompt, userContent, 12000);
     const parsed = safeParse(result, {
         customer: '', project: '', summary: '',
         decisions: [], todos: [], nextSchedule: '', keywords: [],
@@ -344,7 +451,7 @@ export async function POST(req: NextRequest) {
             });
         }
 
-        console.log(`[MINUTES] 三段ロケット開始: 文字起こし ${transcript.length}文字, ${chunkCount || 1}チャンク`);
+        console.log(`[MINUTES] 六段ロケット開始: 文字起こし ${transcript.length}文字, ${chunkCount || 1}チャンク`);
 
         // STEP1: Topic抽出
         const topicsJson = await extractTopics(transcript, chunkCount || 1);
@@ -355,10 +462,16 @@ export async function POST(req: NextRequest) {
         // STEP2: 要点抽出
         const insights = await extractInsights(normalizedTopics);
 
-        // STEP3: 議事録生成
-        const minutesResult = await generateFinalMinutes(normalizedTopics, insights);
+        // STEP2.5: 議題内容の深堀り展開
+        const expanded = await expandTopics(normalizedTopics, transcript);
 
-        console.log('[MINUTES] 三段ロケット完了');
+        // STEP2.8: 論点構造抽出
+        const structures = await extractDiscussionStructure(expanded, insights);
+
+        // STEP3: 議事録生成
+        const minutesResult = await generateFinalMinutes(normalizedTopics, insights, expanded, structures);
+
+        console.log('[MINUTES] 六段ロケット完了');
 
         return NextResponse.json({
             result: minutesResult,
@@ -370,7 +483,10 @@ export async function POST(req: NextRequest) {
                 decisionsCount: (insights.decisions as Array<unknown>)?.length || 0,
                 confirmedTodosCount: (insights.confirmedTodos as Array<unknown>)?.length || 0,
                 suggestedActionsCount: (insights.suggestedActions as Array<unknown>)?.length || 0,
+                expandedTopicCount: (expanded.expandedTopics as Array<unknown>)?.length || 0,
+                discussionStructureCount: (structures.discussionStructures as Array<unknown>)?.length || 0,
                 finalTodosCount: ((minutesResult as Record<string, unknown>).todos as Array<unknown>)?.length || 0,
+                summaryLength: ((minutesResult as Record<string, unknown>).summary as string)?.length || 0,
             },
         });
 
