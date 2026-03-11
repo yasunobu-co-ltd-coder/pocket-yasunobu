@@ -1,10 +1,14 @@
 /**
  * TTS用テキスト分割ユーティリティ
- * 議事録テキストを30〜60文字のチャンクに分割する（上限80文字）
- * 1GB VPSでのVOICEVOX推論メモリ不足を回避するため極小チャンクサイズ
- * 文の区切り（。！？\n）や見出し記号を優先して自然な位置で分割
+ *
+ * セクション単位で分割し、長いセクションのみ文区切りでサブ分割する。
+ * 1GB VPSでのVOICEVOX推論メモリ不足を回避するためチャンクサイズ上限あり。
  */
 
+// セクション内サブ分割の閾値
+const MAX_SECTION_SIZE = 1500;
+
+// サブ分割時の文字数制限（VOICEVOX 1GB VPS向け）
 const MIN_CHUNK_SIZE = 30;
 const MAX_CHUNK_SIZE = 60;
 const HARD_MAX = 80;
@@ -12,33 +16,67 @@ const HARD_MAX = 80;
 // 文の区切りとして認識する文字（優先度順）
 const SENTENCE_DELIMITERS = ['\n\n', '\n', '。', '！', '？', '、'];
 
+// セクション見出しパターン（行頭）
+const HEADING_PATTERN = /^(?:#{1,3}\s|■|●|▶|◆|★|【)/;
+
 /**
  * テキストの前処理：不要な記号や連続改行を正規化
  */
 function normalizeText(text: string): string {
   return text
     .replace(/\r\n/g, '\n')
-    // 連続改行を最大2つに
     .replace(/\n{3,}/g, '\n\n')
-    // 連続スペース・タブを1つに
     .replace(/[ \t]+/g, ' ')
-    // 見出し記号の前に改行を確保（■●▶ など）
-    .replace(/([^\n])(■|●|▶|◆|★|【)/g, '$1\n$2')
     .trim();
 }
 
 /**
- * テキストを自然な文の区切りでチャンクに分割する
+ * テキストをセクション（意味ブロック）に分割
+ * - 見出し行（■●▶◆★【# ## ###）で区切る
+ * - 空行2行連続でも区切る
  */
-export function splitTextIntoChunks(text: string): string[] {
-  // 前処理：不要な記号・連続改行を正規化
-  const normalized = normalizeText(text);
+function splitIntoSections(text: string): string[] {
+  const lines = text.split('\n');
+  const sections: string[] = [];
+  let current: string[] = [];
 
-  if (!normalized) return [];
-  if (normalized.length <= HARD_MAX) return [normalized];
+  const flushSection = () => {
+    const joined = current.join('\n').trim();
+    if (joined) sections.push(joined);
+    current = [];
+  };
+
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i];
+    const trimmed = line.trim();
+
+    // 空行2連続 → セクション区切り
+    if (!trimmed && i + 1 < lines.length && !lines[i + 1].trim()) {
+      flushSection();
+      i++; // 次の空行もスキップ
+      continue;
+    }
+
+    // 見出し行 → 新セクション開始
+    if (trimmed && HEADING_PATTERN.test(trimmed) && current.length > 0) {
+      flushSection();
+    }
+
+    current.push(line);
+  }
+  flushSection();
+
+  return sections;
+}
+
+/**
+ * 長いセクションを文区切りでサブ分割（従来ロジック）
+ */
+function splitLongSection(text: string): string[] {
+  if (text.length <= HARD_MAX) return [text];
 
   const chunks: string[] = [];
-  let remaining = normalized;
+  let remaining = text;
 
   while (remaining.length > 0) {
     if (remaining.length <= HARD_MAX) {
@@ -46,44 +84,67 @@ export function splitTextIntoChunks(text: string): string[] {
       break;
     }
 
-    // MAX_CHUNK_SIZE以内で最も後ろの文区切りを探す
     let splitPos = -1;
 
+    // MAX_CHUNK_SIZE以内で最も後ろの文区切りを探す
     for (const delimiter of SENTENCE_DELIMITERS) {
       const searchRange = remaining.slice(MIN_CHUNK_SIZE, MAX_CHUNK_SIZE);
       const lastIndex = searchRange.lastIndexOf(delimiter);
       if (lastIndex !== -1) {
         const pos = MIN_CHUNK_SIZE + lastIndex + delimiter.length;
-        if (pos > splitPos) {
-          splitPos = pos;
-        }
+        if (pos > splitPos) splitPos = pos;
       }
     }
 
-    // MIN_CHUNK_SIZE より前にも区切りがあれば探す（MAX内で見つからなかった場合）
+    // MIN_CHUNK_SIZE前でも区切りがあれば（MAX内で見つからなかった場合）
     if (splitPos === -1) {
       for (const delimiter of SENTENCE_DELIMITERS) {
         const searchRange = remaining.slice(0, MAX_CHUNK_SIZE);
         const lastIndex = searchRange.lastIndexOf(delimiter);
         if (lastIndex !== -1 && lastIndex > 0) {
           const pos = lastIndex + delimiter.length;
-          if (pos > splitPos) {
-            splitPos = pos;
-          }
+          if (pos > splitPos) splitPos = pos;
         }
       }
     }
 
-    // それでも見つからない場合、MAX_CHUNK_SIZEで強制分割
+    // 見つからない場合、MAX_CHUNK_SIZEで強制分割
     if (splitPos === -1 || splitPos === 0) {
       splitPos = MAX_CHUNK_SIZE;
     }
 
     const chunk = remaining.slice(0, splitPos).trim();
-    if (chunk) {
-      chunks.push(chunk);
-    }
+    if (chunk) chunks.push(chunk);
     remaining = remaining.slice(splitPos);
+  }
+
+  return chunks;
+}
+
+/**
+ * テキストをセクション単位でチャンクに分割する
+ *
+ * 1. セクション（見出し/空行区切り）に分割
+ * 2. MAX_SECTION_SIZE以下のセクションはそのまま1チャンク
+ * 3. 超えるセクションは文区切りでサブ分割
+ */
+export function splitTextIntoChunks(text: string): string[] {
+  const normalized = normalizeText(text);
+  if (!normalized) return [];
+  if (normalized.length <= HARD_MAX) return [normalized];
+
+  const sections = splitIntoSections(normalized);
+  const chunks: string[] = [];
+
+  for (const section of sections) {
+    if (section.length <= MAX_SECTION_SIZE) {
+      // セクション丸ごと1チャンク
+      chunks.push(section);
+    } else {
+      // 長いセクションはサブ分割
+      const subChunks = splitLongSection(section);
+      chunks.push(...subChunks);
+    }
   }
 
   return chunks;
