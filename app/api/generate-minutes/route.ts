@@ -146,25 +146,48 @@ async function extractInsights(normalizedTopics: Record<string, unknown>): Promi
 出力形式:
 {
   "decisions": ["決定事項1", "決定事項2"],
-  "todos": ["タスク1（誰が何をするか）", "タスク2"],
+  "confirmedTodos": ["明確に述べられたタスク1", "タスク2"],
+  "suggestedActions": ["会話の流れ上ほぼ必要な次アクション1", "アクション2"],
   "risks": ["未解決課題1"],
   "importantPoints": ["戦略的に重要な内容1"],
-  "nextSchedule": "次回予定（日時など、不明なら空文字）",
+  "nextSchedule": "次回予定（YYYY年MM月DD日 形式。不明なら空文字）",
   "keywords": ["キーワード1", "キーワード2"]
 }
 
-ルール:
-- decisions: 会議で明確に決まった事項のみ。決まっていないことは含めない
-- todos: 実行すべきタスク。可能なら「誰が何をするか」
-- risks: 未解決課題や懸念事項
-- importantPoints: 戦略的に重要な内容
-- keywords: 重要テーマ（最大5個）
+抽出ルール:
+
+■ decisions: 会議で明確に決まった事項のみ。決まっていないことは含めない。最大5件。
+
+■ confirmedTodos: 会議中で明確に「やる」「対応する」「修正する」等と述べられた作業。最大10件。
+  例: 「〇〇を修正する」「来週までに資料を送る」「APIを差し替える」「テストを実施する」
+
+■ suggestedActions: 明言は弱いが、会話の流れ上ほぼ必要と判断できる次アクション。最大10件。
+  捏造ではなく、会話内容から自然に導ける範囲に限定する。根拠が弱いものは入れない。
+  例: 「要件整理が必要」「UI文言の確認が必要」「実装後の動作確認が必要」「関係者への共有が必要」
+
+■ confirmedTodos / suggestedActions の記載ルール:
+  - 可能なら「誰が / 何を」の形にする
+  - 誰が不明でも、やることは具体的に書く
+  - 抽象語のみは禁止（「対応する」「進める」だけはNG）
+  - できるだけ行動単位に分解する
+    悪い例: 「アプリ改善」
+    良い例: 「音声再生の倍速設定をチャンク切替後も維持するよう修正する」
+  - confirmedTodosとsuggestedActionsの重複禁止
+
+■ nextSchedule: 次回予定がある場合はYYYY年MM月DD日形式で記載。曜日があれば含める。不明なら空文字。
+
+■ risks: 未解決課題や懸念事項
+■ importantPoints: 戦略的に重要な内容
+■ keywords: 重要テーマ（最大5個）
 - 情報の捏造は禁止
 - 該当がなければ空配列・空文字`;
 
-    const result = await callLLM(systemPrompt, JSON.stringify(normalizedTopics), 2000);
-    const parsed = safeParse(result, { decisions: [], todos: [], risks: [], importantPoints: [], nextSchedule: '', keywords: [] });
-    console.log('[MINUTES] STEP2完了: 要点抽出済み');
+    const result = await callLLM(systemPrompt, JSON.stringify(normalizedTopics), 3000);
+    const parsed = safeParse(result, {
+        decisions: [], confirmedTodos: [], suggestedActions: [],
+        risks: [], importantPoints: [], nextSchedule: '', keywords: [],
+    });
+    console.log(`[MINUTES] STEP2完了: confirmed=${(parsed.confirmedTodos as Array<unknown>)?.length || 0}, suggested=${(parsed.suggestedActions as Array<unknown>)?.length || 0}`);
     return parsed;
 }
 
@@ -178,6 +201,12 @@ async function generateFinalMinutes(
     const systemPrompt = `あなたはプロフェッショナルな議事録作成者です。
 以下の情報をもとに会議議事録を作成してください。
 
+入力データには以下が含まれます:
+- topics: 議題一覧
+- analysis: 要点分析結果
+  - analysis.confirmedTodos: 会議で明確に述べられたタスク
+  - analysis.suggestedActions: 会話の流れ上必要と判断される次アクション
+
 出力は **有効なJSONのみ** を返してください。
 
 出力形式:
@@ -186,12 +215,26 @@ async function generateFinalMinutes(
   "project": "案件名・用件（推測できる場合）",
   "summary": "議事録の本文（以下の構造で記述）",
   "decisions": ["決定事項1", "決定事項2"],
-  "todos": ["タスク1", "タスク2"],
-  "nextSchedule": "次回予定",
+  "todos": ["タスク1", "タスク2", ... 最大8〜10件],
+  "nextSchedule": "YYYY年MM月DD日（曜日）形式。不明なら空文字",
   "keywords": ["タグ1", "タグ2"]
 }
 
-summaryは以下の構造で記述してください:
+■ todos の統合ルール（重要）:
+1. まず confirmedTodos を優先して todos に入れる
+2. その上で不足している場合、suggestedActions から重要度の高いものを追加し、最大8〜10件まで補完する
+3. 以下の優先順で並べる:
+   - 明確に指示された作業
+   - 締切や担当が見える作業
+   - 次回までに必要な準備
+   - 推定アクション
+4. 記載ルール:
+   - 可能なら「誰が / 何を」の形にする
+   - 抽象語のみは禁止（「対応する」「進める」だけはNG）
+   - 行動単位に分解する
+   - 重複禁止
+
+■ summaryは以下の構造で記述してください:
 
 ■会議概要
 会議の背景・目的を1〜2文で記述
@@ -222,6 +265,7 @@ summaryは以下の構造で記述してください:
 - 決まっていないことを決定事項にしない
 - 情報の捏造禁止
 - 該当情報がない項目は空配列・空文字
+- nextScheduleは日付がわかる場合はYYYY年MM月DD日形式で記載
 
 今日の日付は ${TODAY()} です。`;
 
@@ -297,7 +341,9 @@ export async function POST(req: NextRequest) {
             _debug: {
                 topicCount: (normalizedTopics.topics as Array<unknown>)?.length || 0,
                 decisionsCount: (insights.decisions as Array<unknown>)?.length || 0,
-                todosCount: (insights.todos as Array<unknown>)?.length || 0,
+                confirmedTodosCount: (insights.confirmedTodos as Array<unknown>)?.length || 0,
+                suggestedActionsCount: (insights.suggestedActions as Array<unknown>)?.length || 0,
+                finalTodosCount: ((minutesResult as Record<string, unknown>).todos as Array<unknown>)?.length || 0,
             },
         });
 
