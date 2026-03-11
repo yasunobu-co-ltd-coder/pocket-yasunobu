@@ -1,12 +1,13 @@
 /**
  * TTS用テキスト分割ユーティリティ
- * 議事録テキストを100〜200文字のチャンクに分割する
+ * 議事録テキストを40〜80文字のチャンクに分割する（上限100文字）
  * 1GB VPSでのVOICEVOX推論メモリ不足を回避するため極小チャンクサイズ
  * 文の区切り（。！？\n）や見出し記号を優先して自然な位置で分割
  */
 
-const MIN_CHUNK_SIZE = 100;
-const MAX_CHUNK_SIZE = 200;
+const MIN_CHUNK_SIZE = 40;
+const MAX_CHUNK_SIZE = 80;
+const HARD_MAX = 100;
 
 // 文の区切りとして認識する文字（優先度順）
 const SENTENCE_DELIMITERS = ['\n\n', '\n', '。', '！', '？', '、'];
@@ -34,13 +35,13 @@ export function splitTextIntoChunks(text: string): string[] {
   const normalized = normalizeText(text);
 
   if (!normalized) return [];
-  if (normalized.length <= MAX_CHUNK_SIZE) return [normalized];
+  if (normalized.length <= HARD_MAX) return [normalized];
 
   const chunks: string[] = [];
   let remaining = normalized;
 
   while (remaining.length > 0) {
-    if (remaining.length <= MAX_CHUNK_SIZE) {
+    if (remaining.length <= HARD_MAX) {
       chunks.push(remaining.trim());
       break;
     }
