@@ -195,12 +195,21 @@ export default function TTSPlayer({ minuteId, summaryText }: TTSPlayerProps) {
   };
 
   const playChunk = useCallback((index: number) => {
+    // ユーザーが明示的に再生操作していない場合は何もしない（自動再生防止）
+    if (!isPlayingRef.current) return;
+
     if (index >= chunks.length) {
       isPlayingRef.current = false;
       setStatus('ready');
       setCurrentChunkIndex(0);
       setProgress(0);
       return;
+    }
+
+    // 前のオーディオがあれば停止
+    if (audioRef.current) {
+      audioRef.current.pause();
+      audioRef.current = null;
     }
 
     const chunk = chunks[index];
@@ -232,6 +241,8 @@ export default function TTSPlayer({ minuteId, summaryText }: TTSPlayerProps) {
       isPlayingRef.current = false;
     };
 
+    // 再生直前に最新速度を再適用
+    audio.playbackRate = speedRef.current;
     audio.play().catch(() => {
       setErrorMsg('再生を開始できませんでした');
       setStatus('error');
