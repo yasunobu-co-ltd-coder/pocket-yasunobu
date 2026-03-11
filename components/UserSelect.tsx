@@ -134,6 +134,7 @@ export default function UserSelect({ onSelect }: UserSelectProps) {
     const [deleteMode, setDeleteMode] = useState(false);
     const [isAdding, setIsAdding] = useState(false);
     const [deleteModal, setDeleteModal] = useState<DeleteModalState | null>(null);
+    const [isDragging, setIsDragging] = useState(false);
 
     // Long-press: 250ms delay before drag starts
     const pointerSensor = useSensor(PointerSensor, {
@@ -149,8 +150,12 @@ export default function UserSelect({ onSelect }: UserSelectProps) {
         if (verified === 'true') setIsPinVerified(true);
     }, []);
 
+    // PIN認証直後のゴーストクリック防止用タイムスタンプ
+    const [pinVerifiedAt, setPinVerifiedAt] = useState(0);
+
     const handlePinSubmit = () => {
         if (pin === VALID_PIN) {
+            setPinVerifiedAt(Date.now());
             setIsPinVerified(true);
             sessionStorage.setItem('pocket_yasunobu_pin_verified', 'true');
             setPinError('');
@@ -255,7 +260,14 @@ export default function UserSelect({ onSelect }: UserSelectProps) {
         }
     };
 
+    const handleDragStart = () => {
+        setIsDragging(true);
+    };
+
     const handleDragEnd = async (event: DragEndEvent) => {
+        // ドラッグ後にクリックイベントがバブルアップしてonSelectが誤発火するのを防止
+        setTimeout(() => setIsDragging(false), 300);
+
         const { active, over } = event;
         if (!over || active.id === over.id) return;
 
@@ -271,6 +283,13 @@ export default function UserSelect({ onSelect }: UserSelectProps) {
             supabase.from('users').update({ sort_order: i }).eq('id', u.id)
         );
         await Promise.all(updates);
+    };
+
+    const handleSafeSelect = (user: UserData) => {
+        if (isDragging) return;
+        // PIN認証直後500ms以内のクリックはゴーストクリックとして無視
+        if (pinVerifiedAt > 0 && Date.now() - pinVerifiedAt < 500) return;
+        onSelect(user);
     };
 
     if (!isPinVerified) {
@@ -360,7 +379,7 @@ export default function UserSelect({ onSelect }: UserSelectProps) {
                 )}
 
                 {!loading && !error && users.length > 0 && (
-                    <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
+                    <DndContext sensors={sensors} collisionDetection={closestCenter} onDragStart={handleDragStart} onDragEnd={handleDragEnd} onDragCancel={() => setIsDragging(false)}>
                         <SortableContext items={users.map(u => u.id)} strategy={rectSortingStrategy}>
                             <div className="grid grid-cols-2 gap-4">
                                 {users.map((user) => (
@@ -368,7 +387,7 @@ export default function UserSelect({ onSelect }: UserSelectProps) {
                                         key={user.id}
                                         user={user}
                                         deleteMode={deleteMode}
-                                        onSelect={onSelect}
+                                        onSelect={handleSafeSelect}
                                         onDelete={handleDeleteUser}
                                     />
                                 ))}
