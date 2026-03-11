@@ -207,11 +207,15 @@ export default function HistoryList({ userId, userName, refreshTrigger, initialS
             {/* Search bar */}
             <div className="relative mb-6">
                 <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-[18px] h-[18px] text-slate-400" />
+                <label htmlFor="history-search" className="sr-only">検索</label>
                 <input
+                    id="history-search"
+                    name="search"
                     type="text"
                     value={searchQuery}
                     onChange={(e) => setSearchQuery(e.target.value)}
-                    placeholder="検索（会社名・内容）"
+                    placeholder="検索（会議名・内容）"
+                    autoComplete="off"
                     className="w-full bg-white border border-slate-200 rounded-[14px] pl-11 pr-4 py-4 text-[15px] text-slate-700 placeholder:text-slate-400 focus:border-violet-300 focus:shadow-[0_0_0_4px_rgba(124,58,237,0.08)] outline-none transition-all"
                 />
             </div>
@@ -293,13 +297,13 @@ export default function HistoryList({ userId, userName, refreshTrigger, initialS
                                 /* ===== Edit Mode ===== */
                                 <>
                                     <div>
-                                        <label className="block text-[13px] font-bold text-slate-400 uppercase tracking-[0.5px] mb-3">会議名</label>
-                                        <input type="text" value={editClientName} onChange={(e) => setEditClientName(e.target.value)}
+                                        <label htmlFor="edit-client-name" className="block text-[13px] font-bold text-slate-400 uppercase tracking-[0.5px] mb-3">会議名</label>
+                                        <input id="edit-client-name" name="client-name" type="text" value={editClientName} onChange={(e) => setEditClientName(e.target.value)}
                                             className="w-full bg-slate-50 border border-slate-200 rounded-[12px] px-5 py-4 text-[16px] text-slate-700 focus:border-violet-400 focus:bg-white focus:shadow-[0_0_0_4px_rgba(124,58,237,0.1)] outline-none transition-all" />
                                     </div>
                                     <div>
-                                        <label className="block text-[13px] font-bold text-slate-400 uppercase tracking-[0.5px] mb-3">内容</label>
-                                        <textarea value={editSummary} onChange={(e) => setEditSummary(e.target.value)} rows={8}
+                                        <label htmlFor="edit-summary" className="block text-[13px] font-bold text-slate-400 uppercase tracking-[0.5px] mb-3">内容</label>
+                                        <textarea id="edit-summary" name="summary" value={editSummary} onChange={(e) => setEditSummary(e.target.value)} rows={8}
                                             className="w-full bg-slate-50 border border-slate-200 rounded-[12px] px-5 py-4 text-[15px] text-slate-700 leading-[1.7] focus:border-violet-400 focus:bg-white focus:shadow-[0_0_0_4px_rgba(124,58,237,0.1)] outline-none resize-none transition-all" />
                                     </div>
                                     <div className="flex gap-3 pt-2">
@@ -320,7 +324,7 @@ export default function HistoryList({ userId, userName, refreshTrigger, initialS
                                 <>
                                     {/* Client name */}
                                     <div>
-                                        <label className="block text-[13px] font-bold text-slate-400 uppercase tracking-[0.5px] mb-2">会議名</label>
+                                        <span className="block text-[13px] font-bold text-slate-400 uppercase tracking-[0.5px] mb-2">会議名</span>
                                         <p className="text-[19px] font-bold text-slate-800">{selectedRecord.client_name || '名称なし'}</p>
                                     </div>
 
@@ -332,7 +336,7 @@ export default function HistoryList({ userId, userName, refreshTrigger, initialS
 
                                     {/* Summary */}
                                     <div>
-                                        <label className="block text-[13px] font-bold text-slate-400 uppercase tracking-[0.5px] mb-3">内容</label>
+                                        <span className="block text-[13px] font-bold text-slate-400 uppercase tracking-[0.5px] mb-3">内容</span>
                                         <p className="text-[15px] text-slate-600 leading-[1.8] whitespace-pre-wrap">{selectedRecord.summary}</p>
                                     </div>
 

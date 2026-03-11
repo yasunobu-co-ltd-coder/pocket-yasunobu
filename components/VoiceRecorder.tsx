@@ -542,7 +542,10 @@ export default function VoiceRecorder({ userId, userName, onSaved, onCancel }: V
                         <p className="text-[13px] text-slate-400">
                             内容を確認・編集してから「議事録にまとめる」をタップしてください
                         </p>
+                        <label htmlFor="editable-transcript" className="sr-only">文字起こし結果</label>
                         <textarea
+                            id="editable-transcript"
+                            name="transcript"
                             value={editableTranscript}
                             onChange={(e) => setEditableTranscript(e.target.value)}
                             className="w-full h-56 bg-slate-50 border border-slate-200 rounded-[12px] p-4 text-[14px] text-slate-700 leading-[1.6] focus:border-violet-400 focus:bg-white focus:shadow-[0_0_0_4px_rgba(124,58,237,0.1)] outline-none resize-none placeholder-slate-300 transition-all"
@@ -578,8 +581,8 @@ export default function VoiceRecorder({ userId, userName, onSaved, onCancel }: V
                     <div className="p-6 space-y-5">
                         {/* Customer name input */}
                         <div>
-                            <label className="block text-[12px] font-bold text-slate-400 uppercase tracking-[0.5px] mb-2">会議名</label>
-                            <input type="text" value={customer} onChange={(e) => setCustomer(e.target.value)}
+                            <label htmlFor="meeting-name" className="block text-[12px] font-bold text-slate-400 uppercase tracking-[0.5px] mb-2">会議名</label>
+                            <input id="meeting-name" name="meeting-name" type="text" value={customer} onChange={(e) => setCustomer(e.target.value)}
                                 className="w-full bg-slate-50 border border-slate-200 rounded-[12px] px-4 py-3.5 text-[16px] text-slate-700 focus:border-violet-400 focus:bg-white focus:shadow-[0_0_0_4px_rgba(124,58,237,0.1)] outline-none transition-all" />
                         </div>
 
@@ -750,7 +753,7 @@ export default function VoiceRecorder({ userId, userName, onSaved, onCancel }: V
                 </button>
             </div>
 
-            <input type="file" ref={audioFileInputRef} accept=".mp3,.m4a,.wav,.webm,audio/*" hidden onChange={handleAudioFileSelect} />
+            <input id="audio-file-input" name="audio-file" type="file" ref={audioFileInputRef} accept=".mp3,.m4a,.wav,.webm,audio/*" hidden onChange={handleAudioFileSelect} />
 
             <p className="text-[12px] text-slate-300 text-center flex items-center justify-center gap-1.5 pt-2">
                 <FileAudio className="w-3 h-3" />

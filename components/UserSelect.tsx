@@ -308,7 +308,10 @@ export default function UserSelect({ onSelect }: UserSelectProps) {
                     <p className="text-slate-400 text-[13px]">PINコードを入力してください</p>
                 </div>
                 <div className="w-full max-w-[360px] bg-white/90 backdrop-blur-[10px] rounded-[24px] p-8 shadow-[0_20px_40px_-10px_rgba(124,58,237,0.15)] border border-white/60 flex flex-col items-center gap-5">
+                    <label htmlFor="pin-input" className="sr-only">PINコード</label>
                     <input
+                        id="pin-input"
+                        name="pin"
                         type="password"
                         inputMode="numeric"
                         maxLength={4}
@@ -316,6 +319,7 @@ export default function UserSelect({ onSelect }: UserSelectProps) {
                         onChange={e => setPin(e.target.value.replace(/\D/g, '').slice(0, 4))}
                         onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); handlePinSubmit(); } }}
                         placeholder="____"
+                        autoComplete="off"
                         className="bg-white border border-slate-200 rounded-[16px] px-6 py-5 text-[28px] font-bold text-slate-700 text-center tracking-[12px] w-[180px] focus:border-violet-300 focus:shadow-[0_0_0_4px_rgba(124,58,237,0.08)] outline-none transition-all"
                     />
                     {pinError && <p className="text-red-500 text-[13px]">{pinError}</p>}
@@ -401,12 +405,16 @@ export default function UserSelect({ onSelect }: UserSelectProps) {
                 {/* Add user form */}
                 {!loading && !error && !deleteMode && (
                     <div className="mt-6 flex flex-col gap-3">
+                        <label htmlFor="new-user-name" className="sr-only">新しいユーザー名</label>
                         <input
+                            id="new-user-name"
+                            name="new-user-name"
                             type="text"
                             value={newUserName}
                             onChange={(e) => setNewUserName(e.target.value)}
                             onKeyDown={(e) => { if (e.key === 'Enter') handleAddUser(); }}
                             placeholder="新しいユーザー名"
+                            autoComplete="off"
                             className="w-full bg-white border border-slate-200 rounded-[16px] px-5 py-4 text-[15px] text-slate-700 placeholder:text-slate-400 focus:border-violet-300 focus:shadow-[0_0_0_4px_rgba(124,58,237,0.08)] outline-none transition-all"
                         />
                         <button
