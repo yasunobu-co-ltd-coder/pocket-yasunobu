@@ -91,7 +91,9 @@ function SortableUserCard({
     return (
         <div ref={setNodeRef} style={style} className="relative">
             <button
+                tabIndex={0}
                 onClick={() => { if (!deleteMode) onSelect(user); }}
+                onKeyDown={e => { if (e.key === 'Enter') e.preventDefault(); }}
                 className={`w-full rounded-[16px] py-5 px-4 flex items-center justify-center border transition-all duration-200 active:scale-[0.96] group ${
                     deleteMode
                         ? 'bg-red-50 border-red-200'
@@ -287,8 +289,8 @@ export default function UserSelect({ onSelect }: UserSelectProps) {
 
     const handleSafeSelect = (user: UserData) => {
         if (isDragging) return;
-        // PIN認証直後500ms以内のクリックはゴーストクリックとして無視
-        if (pinVerifiedAt > 0 && Date.now() - pinVerifiedAt < 500) return;
+        // PIN認証直後800ms以内のクリック/Enterはゴーストイベントとして無視
+        if (pinVerifiedAt > 0 && Date.now() - pinVerifiedAt < 800) return;
         onSelect(user);
     };
 
@@ -312,7 +314,7 @@ export default function UserSelect({ onSelect }: UserSelectProps) {
                         maxLength={4}
                         value={pin}
                         onChange={e => setPin(e.target.value.replace(/\D/g, '').slice(0, 4))}
-                        onKeyDown={e => { if (e.key === 'Enter') handlePinSubmit(); }}
+                        onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); handlePinSubmit(); } }}
                         placeholder="____"
                         className="bg-white border border-slate-200 rounded-[16px] px-6 py-5 text-[28px] font-bold text-slate-700 text-center tracking-[12px] w-[180px] focus:border-violet-300 focus:shadow-[0_0_0_4px_rgba(124,58,237,0.08)] outline-none transition-all"
                     />

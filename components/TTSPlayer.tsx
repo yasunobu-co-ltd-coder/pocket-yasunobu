@@ -36,6 +36,7 @@ export default function TTSPlayer({ minuteId, summaryText }: TTSPlayerProps) {
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const isPlayingRef = useRef(false);
   const isGeneratingRef = useRef(false);
+  const speedRef = useRef(speed);
 
   // 初回マウント時にステータス確認
   useEffect(() => {
@@ -43,8 +44,9 @@ export default function TTSPlayer({ minuteId, summaryText }: TTSPlayerProps) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [minuteId]);
 
-  // 速度変更をオーディオ要素に反映
+  // 速度変更をオーディオ要素とrefに反映
   useEffect(() => {
+    speedRef.current = speed;
     if (audioRef.current) {
       audioRef.current.playbackRate = speed;
     }
@@ -203,7 +205,7 @@ export default function TTSPlayer({ minuteId, summaryText }: TTSPlayerProps) {
 
     const chunk = chunks[index];
     const audio = new Audio(chunk.audio_url);
-    audio.playbackRate = speed;
+    audio.playbackRate = speedRef.current;
     audioRef.current = audio;
     setCurrentChunkIndex(index);
 
@@ -235,7 +237,7 @@ export default function TTSPlayer({ minuteId, summaryText }: TTSPlayerProps) {
       setStatus('error');
       isPlayingRef.current = false;
     });
-  }, [chunks, speed]);
+  }, [chunks]);
 
   const handlePlay = () => {
     if (status === 'paused' && audioRef.current) {
