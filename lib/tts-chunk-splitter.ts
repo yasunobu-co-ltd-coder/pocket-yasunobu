@@ -5,10 +5,8 @@
  * 1GB VPSでのVOICEVOX推論メモリ不足を回避するためチャンクサイズ上限あり。
  */
 
-// セクション内サブ分割の閾値
-const MAX_SECTION_SIZE = 1500;
-
-// サブ分割時の文字数制限（VOICEVOX 1GB VPS向け）
+// VOICEVOX 1GB VPS向け文字数制限
+// セクション分割後、全チャンクをこのサイズ以下にサブ分割する
 const MIN_CHUNK_SIZE = 30;
 const MAX_CHUNK_SIZE = 60;
 const HARD_MAX = 80;
@@ -125,8 +123,8 @@ function splitLongSection(text: string): string[] {
  * テキストをセクション単位でチャンクに分割する
  *
  * 1. セクション（見出し/空行区切り）に分割
- * 2. MAX_SECTION_SIZE以下のセクションはそのまま1チャンク
- * 3. 超えるセクションは文区切りでサブ分割
+ * 2. HARD_MAX以下のセクションはそのまま1チャンク
+ * 3. 超えるセクションは文区切りでサブ分割（VOICEVOX OOM回避）
  */
 export function splitTextIntoChunks(text: string): string[] {
   const normalized = normalizeText(text);
@@ -137,11 +135,11 @@ export function splitTextIntoChunks(text: string): string[] {
   const chunks: string[] = [];
 
   for (const section of sections) {
-    if (section.length <= MAX_SECTION_SIZE) {
-      // セクション丸ごと1チャンク
+    if (section.length <= HARD_MAX) {
+      // セクション丸ごと1チャンク（VOICEVOX処理可能サイズ）
       chunks.push(section);
     } else {
-      // 長いセクションはサブ分割
+      // HARD_MAX超のセクションはサブ分割
       const subChunks = splitLongSection(section);
       chunks.push(...subChunks);
     }
