@@ -2,17 +2,22 @@
  * TTS用テキスト分割ユーティリティ
  *
  * セクション単位で分割し、長いセクションのみ文区切りでサブ分割する。
- * 1GB VPSでのVOICEVOX推論メモリ不足を回避するためチャンクサイズ上限あり。
+ * 4GB VPSでのVOICEVOX推論を安定させつつ、チャンク数を抑えて高速化。
+ *
+ * ─── チューニング定数 ───
+ * TARGET_CHUNK_SIZE: 文区切り探索の目標サイズ（この付近で分割を試みる）
+ * HARD_MAX:          1チャンクの絶対上限（これ以下なら分割しない）
+ * MIN_CHUNK_SIZE:    文区切り探索の最小範囲（短すぎるチャンクを避ける）
  */
 
-// VOICEVOX 1GB VPS向け文字数制限
-// セクション分割後、全チャンクをこのサイズ以下にサブ分割する
-const MIN_CHUNK_SIZE = 30;
-const MAX_CHUNK_SIZE = 60;
-const HARD_MAX = 80;
+// ── チューニング定数（変更しやすいようにまとめて定義）──
+export const TARGET_CHUNK_SIZE = 100;   // 目標チャンクサイズ（日本語文字数）
+export const HARD_MAX = 150;            // 1チャンク絶対上限
+export const MIN_CHUNK_SIZE = 50;       // 最小チャンクサイズ
 
 // 文の区切りとして認識する文字（優先度順）
-const SENTENCE_DELIMITERS = ['\n\n', '\n', '。', '！', '？', '、'];
+// 「、」（読点）では区切らない — 文の途中で切れて不自然になるため
+const SENTENCE_DELIMITERS = ['\n\n', '\n', '。', '！', '？'];
 
 // セクション見出しパターン（行頭）
 const HEADING_PATTERN = /^(?:#{1,3}\s|■|●|▶|◆|★|【)/;
@@ -68,7 +73,7 @@ function splitIntoSections(text: string): string[] {
 }
 
 /**
- * 長いセクションを文区切りでサブ分割（従来ロジック）
+ * 長いセクションを文区切りでサブ分割
  */
 function splitLongSection(text: string): string[] {
   if (text.length <= HARD_MAX) return [text];
@@ -84,9 +89,9 @@ function splitLongSection(text: string): string[] {
 
     let splitPos = -1;
 
-    // MAX_CHUNK_SIZE以内で最も後ろの文区切りを探す
+    // TARGET_CHUNK_SIZE以内で最も後ろの文区切りを探す
     for (const delimiter of SENTENCE_DELIMITERS) {
-      const searchRange = remaining.slice(MIN_CHUNK_SIZE, MAX_CHUNK_SIZE);
+      const searchRange = remaining.slice(MIN_CHUNK_SIZE, TARGET_CHUNK_SIZE);
       const lastIndex = searchRange.lastIndexOf(delimiter);
       if (lastIndex !== -1) {
         const pos = MIN_CHUNK_SIZE + lastIndex + delimiter.length;
@@ -94,10 +99,10 @@ function splitLongSection(text: string): string[] {
       }
     }
 
-    // MIN_CHUNK_SIZE前でも区切りがあれば（MAX内で見つからなかった場合）
+    // MIN_CHUNK_SIZE前でも区切りがあれば（TARGET内で見つからなかった場合）
     if (splitPos === -1) {
       for (const delimiter of SENTENCE_DELIMITERS) {
-        const searchRange = remaining.slice(0, MAX_CHUNK_SIZE);
+        const searchRange = remaining.slice(0, TARGET_CHUNK_SIZE);
         const lastIndex = searchRange.lastIndexOf(delimiter);
         if (lastIndex !== -1 && lastIndex > 0) {
           const pos = lastIndex + delimiter.length;
@@ -106,9 +111,21 @@ function splitLongSection(text: string): string[] {
       }
     }
 
-    // 見つからない場合、MAX_CHUNK_SIZEで強制分割
+    // それでも見つからない場合 → HARD_MAXまで広げて探す
+    if (splitPos === -1) {
+      for (const delimiter of SENTENCE_DELIMITERS) {
+        const searchRange = remaining.slice(TARGET_CHUNK_SIZE, HARD_MAX);
+        const lastIndex = searchRange.lastIndexOf(delimiter);
+        if (lastIndex !== -1) {
+          const pos = TARGET_CHUNK_SIZE + lastIndex + delimiter.length;
+          if (pos > splitPos) splitPos = pos;
+        }
+      }
+    }
+
+    // 見つからない場合、TARGET_CHUNK_SIZEで強制分割
     if (splitPos === -1 || splitPos === 0) {
-      splitPos = MAX_CHUNK_SIZE;
+      splitPos = TARGET_CHUNK_SIZE;
     }
 
     const chunk = remaining.slice(0, splitPos).trim();
@@ -124,7 +141,7 @@ function splitLongSection(text: string): string[] {
  *
  * 1. セクション（見出し/空行区切り）に分割
  * 2. HARD_MAX以下のセクションはそのまま1チャンク
- * 3. 超えるセクションは文区切りでサブ分割（VOICEVOX OOM回避）
+ * 3. 超えるセクションは文区切りでサブ分割
  */
 export function splitTextIntoChunks(text: string): string[] {
   const normalized = normalizeText(text);
@@ -136,10 +153,8 @@ export function splitTextIntoChunks(text: string): string[] {
 
   for (const section of sections) {
     if (section.length <= HARD_MAX) {
-      // セクション丸ごと1チャンク（VOICEVOX処理可能サイズ）
       chunks.push(section);
     } else {
-      // HARD_MAX超のセクションはサブ分割
       const subChunks = splitLongSection(section);
       chunks.push(...subChunks);
     }
