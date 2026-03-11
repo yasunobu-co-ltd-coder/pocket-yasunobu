@@ -2,7 +2,9 @@
   "permissions": {
     "allow": [
       "Bash(GIT_EDITOR=true git rebase --continue)",
-      "Bash(npm run build)"
+      "Bash(npm run build)",
+      "Bash(npm install lucide-react)",
+      "Bash(npx vercel ls)"
     ]
   }
 }

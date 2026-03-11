@@ -5,7 +5,7 @@ export const runtime = 'nodejs';
 
 /**
  * GET /api/tts/status?minute_id=xxx
- * 議事録の音声生成状態とチャンク情報を返す
+ * 議事録の音声生成状態・進捗・チャンク情報を返す
  */
 export async function GET(req: NextRequest) {
   try {
@@ -44,6 +44,11 @@ export async function GET(req: NextRequest) {
       status: audio.status,
       duration_sec: audio.duration_sec,
       text_hash: audio.text_hash,
+      total_chunks: audio.total_chunks || 0,
+      completed_chunks: audio.completed_chunks || 0,
+      current_chunk_index: audio.current_chunk_index || 0,
+      progress_text: audio.progress_text || '',
+      error_message: audio.error_message || null,
       chunks: chunks || [],
       created_at: audio.created_at,
       updated_at: audio.updated_at,

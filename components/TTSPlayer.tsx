@@ -27,8 +27,15 @@ export default function TTSPlayer({ minuteId, summaryText }: TTSPlayerProps) {
   const [speed, setSpeed] = useState<number>(1);
   const [errorMsg, setErrorMsg] = useState('');
   const [progress, setProgress] = useState(0); // 0-100
+
+  // 生成進捗用
+  const [genTotal, setGenTotal] = useState(0);
+  const [genCompleted, setGenCompleted] = useState(0);
+  const [audioId, setAudioId] = useState<string | null>(null);
+
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const isPlayingRef = useRef(false);
+  const isGeneratingRef = useRef(false);
 
   // 初回マウント時にステータス確認
   useEffect(() => {
@@ -46,20 +53,94 @@ export default function TTSPlayer({ minuteId, summaryText }: TTSPlayerProps) {
   const checkStatus = async () => {
     try {
       const res = await fetch(`/api/tts/status?minute_id=${minuteId}`);
+      if (!res.ok) {
+        setStatus('not_generated');
+        return;
+      }
       const data = await res.json();
 
       if (data.status === 'ready' && data.chunks?.length > 0) {
         setChunks(data.chunks);
+        setAudioId(data.audio_id);
+        setGenTotal(data.total_chunks || data.chunks.length);
+        setGenCompleted(data.total_chunks || data.chunks.length);
         setStatus('ready');
       } else if (data.status === 'generating') {
+        setAudioId(data.audio_id);
+        setGenTotal(data.total_chunks || 0);
+        setGenCompleted(data.completed_chunks || 0);
         setStatus('generating');
-        // ポーリング
-        setTimeout(checkStatus, 3000);
+        // 生成ループを開始（まだ動いてなければ）
+        if (!isGeneratingRef.current && data.audio_id) {
+          runGenerationLoop(data.audio_id);
+        }
+      } else if (data.status === 'failed') {
+        setErrorMsg(data.error_message || '音声生成に失敗しました');
+        setStatus('error');
       } else {
         setStatus('not_generated');
       }
     } catch {
       setStatus('not_generated');
+    }
+  };
+
+  /**
+   * ステップワイズ生成ループ
+   * process-next を1チャンクずつ呼び、完了まで繰り返す
+   */
+  const runGenerationLoop = async (aid: string) => {
+    if (isGeneratingRef.current) return;
+    isGeneratingRef.current = true;
+
+    try {
+      let hasMore = true;
+      while (hasMore) {
+        const res = await fetch('/api/tts/process-next', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ audio_id: aid }),
+        });
+
+        if (!res.ok) {
+          let errorText = '音声生成に失敗しました';
+          try {
+            const errData = await res.json();
+            errorText = errData.error || errorText;
+          } catch {
+            // JSONパース失敗 (504等)
+            errorText = `サーバーエラー (${res.status})`;
+          }
+          setErrorMsg(errorText);
+          setStatus('error');
+          isGeneratingRef.current = false;
+          return;
+        }
+
+        const data = await res.json();
+        setGenCompleted(data.completed_chunks || 0);
+        setGenTotal(data.total_chunks || 0);
+
+        if (data.status === 'ready') {
+          hasMore = false;
+        } else if (data.status === 'failed') {
+          setErrorMsg(data.error || '音声生成に失敗しました');
+          setStatus('error');
+          isGeneratingRef.current = false;
+          return;
+        } else {
+          hasMore = data.has_more !== false;
+        }
+      }
+
+      // 完了 → チャンク情報を取得
+      isGeneratingRef.current = false;
+      await checkStatus();
+    } catch (e: unknown) {
+      isGeneratingRef.current = false;
+      const msg = e instanceof Error ? e.message : '音声生成に失敗しました';
+      setErrorMsg(msg);
+      setStatus('error');
     }
   };
 
@@ -72,6 +153,8 @@ export default function TTSPlayer({ minuteId, summaryText }: TTSPlayerProps) {
 
     setStatus('generating');
     setErrorMsg('');
+    setGenCompleted(0);
+    setGenTotal(0);
 
     try {
       const res = await fetch('/api/tts/generate', {
@@ -80,18 +163,27 @@ export default function TTSPlayer({ minuteId, summaryText }: TTSPlayerProps) {
         body: JSON.stringify({ minute_id: minuteId }),
       });
 
-      const data = await res.json();
-
       if (!res.ok) {
-        throw new Error(data.error || '音声生成に失敗しました');
+        let errorText = '音声生成に失敗しました';
+        try {
+          const errData = await res.json();
+          errorText = errData.error || errorText;
+        } catch {
+          errorText = `サーバーエラー (${res.status})`;
+        }
+        throw new Error(errorText);
       }
 
+      const data = await res.json();
+      setAudioId(data.audio_id);
+      setGenTotal(data.total_chunks || 0);
+      setGenCompleted(data.completed_chunks || 0);
+
       if (data.status === 'ready') {
-        // 生成完了 → チャンク情報を取得
         await checkStatus();
-      } else if (data.status === 'generating') {
-        // まだ生成中 → ポーリング
-        setTimeout(checkStatus, 3000);
+      } else if (data.status === 'generating' && data.audio_id) {
+        // ステップワイズ生成ループを開始
+        runGenerationLoop(data.audio_id);
       }
     } catch (e: unknown) {
       const msg = e instanceof Error ? e.message : '音声生成に失敗しました';
@@ -102,7 +194,6 @@ export default function TTSPlayer({ minuteId, summaryText }: TTSPlayerProps) {
 
   const playChunk = useCallback((index: number) => {
     if (index >= chunks.length) {
-      // 全チャンク再生完了
       isPlayingRef.current = false;
       setStatus('ready');
       setCurrentChunkIndex(0);
@@ -116,7 +207,6 @@ export default function TTSPlayer({ minuteId, summaryText }: TTSPlayerProps) {
     audioRef.current = audio;
     setCurrentChunkIndex(index);
 
-    // プログレス計算
     const totalChunks = chunks.length;
     const baseProgress = (index / totalChunks) * 100;
     const chunkProgress = (1 / totalChunks) * 100;
@@ -149,14 +239,12 @@ export default function TTSPlayer({ minuteId, summaryText }: TTSPlayerProps) {
 
   const handlePlay = () => {
     if (status === 'paused' && audioRef.current) {
-      // 一時停止からの再開
       audioRef.current.play();
       isPlayingRef.current = true;
       setStatus('playing');
       return;
     }
 
-    // 最初から再生
     isPlayingRef.current = true;
     setStatus('playing');
     setCurrentChunkIndex(0);
@@ -192,12 +280,13 @@ export default function TTSPlayer({ minuteId, summaryText }: TTSPlayerProps) {
         audioRef.current = null;
       }
       isPlayingRef.current = false;
+      isGeneratingRef.current = false;
     };
   }, []);
 
   // ===== レンダリング =====
 
-  // 未生成状態: 生成ボタンのみ
+  // 未生成状態
   if (status === 'not_generated') {
     return (
       <button
@@ -209,12 +298,28 @@ export default function TTSPlayer({ minuteId, summaryText }: TTSPlayerProps) {
     );
   }
 
-  // 生成中
+  // 生成中（進捗表示付き）
   if (status === 'generating') {
+    const pct = genTotal > 0 ? Math.round((genCompleted / genTotal) * 100) : 0;
     return (
-      <div className="w-full bg-amber-50 text-amber-600 font-bold py-4 rounded-[14px] text-[15px] flex items-center justify-center gap-2">
-        <Loader2 className="w-5 h-5 animate-spin" />
-        音声を生成中...
+      <div className="w-full bg-amber-50 rounded-[14px] p-4 space-y-2">
+        <div className="flex items-center justify-center gap-2 text-amber-600 font-bold text-[15px]">
+          <Loader2 className="w-5 h-5 animate-spin" />
+          音声生成中...
+        </div>
+        {genTotal > 0 && (
+          <>
+            <div className="text-center text-[13px] text-amber-600 font-medium">
+              {genCompleted} / {genTotal}
+            </div>
+            <div className="w-full h-[6px] bg-amber-200 rounded-full overflow-hidden">
+              <div
+                className="h-full bg-amber-500 rounded-full transition-all duration-500"
+                style={{ width: `${pct}%` }}
+              />
+            </div>
+          </>
+        )}
       </div>
     );
   }
@@ -236,7 +341,7 @@ export default function TTSPlayer({ minuteId, summaryText }: TTSPlayerProps) {
     );
   }
 
-  // Ready / Playing / Paused → プレーヤーUI
+  // Ready / Playing / Paused
   return (
     <div className="w-full bg-slate-50 rounded-[14px] p-4 space-y-3">
       {/* プログレスバー */}
@@ -279,7 +384,6 @@ export default function TTSPlayer({ minuteId, summaryText }: TTSPlayerProps) {
             </button>
           </>
         ) : (
-          /* ready */
           <button onClick={handlePlay}
             className="w-full bg-emerald-500 text-white font-bold py-3 rounded-[12px] text-[15px] hover:bg-emerald-600 transition-all active:scale-[0.97] flex items-center justify-center gap-2">
             <Play className="w-5 h-5" />
