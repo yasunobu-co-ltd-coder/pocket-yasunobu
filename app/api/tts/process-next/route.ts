@@ -112,33 +112,40 @@ export async function POST(req: NextRequest) {
     }
 
     // 4. VOICEVOX synthesis
+    console.log(`[TTS] audio_query成功 (chunk ${chunkIndex}), synthesis開始...`);
     const synthesisUrl = new URL(`${VOICEVOX_BASE}/synthesis`);
     synthesisUrl.searchParams.set('speaker', String(SPEAKER_ID));
-    console.log(`[TTS] synthesis URL: ${synthesisUrl.toString()}`);
+    const synthUrlStr = synthesisUrl.toString();
+    const audioQueryBody = JSON.stringify(audioQuery);
+    console.log(`[TTS] synthesis URL: ${synthUrlStr}`);
+    console.log(`[TTS] synthesis body size: ${audioQueryBody.length} bytes`);
 
     let synthRes;
     try {
-      synthRes = await fetch(synthesisUrl.toString(), {
+      const synthStartTime = Date.now();
+      synthRes = await fetch(synthUrlStr, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(audioQuery),
+        body: audioQueryBody,
+        signal: AbortSignal.timeout(50000), // 50秒タイムアウト
       });
+      console.log(`[TTS] synthesis応答: status=${synthRes.status}, ${Date.now() - synthStartTime}ms`);
     } catch (fetchErr: unknown) {
-      const msg = fetchErr instanceof Error ? fetchErr.message : 'Unknown fetch error';
-      const errDetail = `VOICEVOX synthesis接続エラー: ${msg}, url=${synthesisUrl.toString()}`;
+      const errObj = fetchErr instanceof Error ? { name: fetchErr.name, message: fetchErr.message, cause: String(fetchErr.cause ?? '') } : { message: String(fetchErr) };
+      const errDetail = `VOICEVOX synthesis接続エラー: ${JSON.stringify(errObj)}, chunk=${chunkIndex}, length=${chunkText.length}, url=${synthUrlStr}`;
       console.error(`[TTS] ${errDetail}`);
       await markFailed(supabase, audio_id, errDetail);
-      return NextResponse.json({ audio_id, status: 'failed', error: errDetail }, { status: 502 });
+      return NextResponse.json({ audio_id, status: 'failed', error: errDetail, chunk_index: chunkIndex, chunk_length: chunkText.length }, { status: 502 });
     }
     if (!synthRes.ok) {
       const errBody = await synthRes.text();
       const isMemory = errBody.includes('allocate memory') || errBody.includes('out of memory') || errBody.includes('OOM') || synthRes.status === 500;
       const errDetail = isMemory
         ? `音声生成サーバーのメモリ不足の可能性があります（chunk ${chunkIndex}, ${chunkText.length}文字）`
-        : `VOICEVOX synthesis失敗: status=${synthRes.status}, url=${synthesisUrl.toString()}, body=${errBody.slice(0, 200)}`;
+        : `VOICEVOX synthesis失敗: status=${synthRes.status}, chunk=${chunkIndex}, length=${chunkText.length}, url=${synthUrlStr}, body=${errBody.slice(0, 300)}`;
       console.error(`[TTS] ${errDetail}`);
       await markFailed(supabase, audio_id, errDetail);
-      return NextResponse.json({ audio_id, status: 'failed', error: errDetail }, { status: 502 });
+      return NextResponse.json({ audio_id, status: 'failed', error: errDetail, chunk_index: chunkIndex, chunk_length: chunkText.length }, { status: 502 });
     }
 
     const wavBuffer = await synthRes.arrayBuffer();
