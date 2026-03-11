@@ -362,15 +362,52 @@ export default function HistoryList({ userId, userName, refreshTrigger, initialS
                                         </button>
                                         <button
                                             onClick={async () => {
-                                                if (!confirm('この議事録をデータベースから完全に削除します。\nこの操作は取り消せません。\n\n本当に削除しますか？')) return;
+                                                if (!confirm('この議事録をデータベースから完全に削除します。\n関連する音声データも削除されます。\nこの操作は取り消せません。\n\n本当に削除しますか？')) return;
                                                 setIsDeleting(true);
                                                 try {
+                                                    const minuteId = selectedRecord.id;
+
+                                                    // 1. 音声ジョブを取得
+                                                    const { data: audioJobs } = await supabase
+                                                        .from('minutes_audio')
+                                                        .select('id')
+                                                        .eq('minute_id', minuteId);
+
+                                                    if (audioJobs && audioJobs.length > 0) {
+                                                        const audioIds = audioJobs.map(a => a.id);
+
+                                                        // 2. 音声チャンクレコードを削除
+                                                        await supabase
+                                                            .from('minutes_audio_chunks')
+                                                            .delete()
+                                                            .in('audio_id', audioIds);
+
+                                                        // 3. 音声ジョブレコードを削除
+                                                        await supabase
+                                                            .from('minutes_audio')
+                                                            .delete()
+                                                            .eq('minute_id', minuteId);
+                                                    }
+
+                                                    // 4. Storageの音声ファイルを削除
+                                                    const { data: storageFiles } = await supabase.storage
+                                                        .from('tts-audio')
+                                                        .list(`tts/${minuteId}`);
+
+                                                    if (storageFiles && storageFiles.length > 0) {
+                                                        const filePaths = storageFiles.map(f => `tts/${minuteId}/${f.name}`);
+                                                        await supabase.storage
+                                                            .from('tts-audio')
+                                                            .remove(filePaths);
+                                                    }
+
+                                                    // 5. 議事録レコードを削除
                                                     const { error: deleteError } = await supabase
                                                         .from('pocket-yasunobu')
                                                         .delete()
-                                                        .eq('id', selectedRecord.id);
+                                                        .eq('id', minuteId);
                                                     if (deleteError) throw deleteError;
-                                                    setRecords(records.filter(r => r.id !== selectedRecord.id));
+                                                    setRecords(records.filter(r => r.id !== minuteId));
                                                     setSelectedRecord(null);
                                                     onDataChanged?.();
                                                 } catch (e: unknown) {
