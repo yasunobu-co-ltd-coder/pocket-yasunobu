@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useRef, useEffect } from 'react';
-import { Mic, Square, Save, Loader2, Check, Upload, FileAudio, ArrowLeft, ChevronRight, Download } from 'lucide-react';
+import { Mic, Square, Save, Loader2, Check, Upload, FileAudio, ArrowLeft, ChevronRight, Download, Pencil } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 import { splitAudioIntoChunks, transcribeChunksParallel } from '@/lib/audio-chunker';
 import { generateMinutesPdf } from '@/lib/generate-pdf';
@@ -106,6 +106,13 @@ export default function VoiceRecorder({ userId, userName, onSaved, onCancel }: V
 
     // Form State
     const [customer, setCustomer] = useState('');
+
+    // 編集モード
+    const [isEditingResult, setIsEditingResult] = useState(false);
+    const [editSummary, setEditSummary] = useState('');
+    const [editDecisions, setEditDecisions] = useState('');
+    const [editTodos, setEditTodos] = useState('');
+    const [editNextSchedule, setEditNextSchedule] = useState('');
 
     useEffect(() => {
         return () => {
@@ -455,6 +462,61 @@ export default function VoiceRecorder({ userId, userName, onSaved, onCancel }: V
         }
     };
 
+    // 編集モード開始
+    const startEditingResult = () => {
+        if (!result) return;
+        setEditSummary(result.summary);
+        setEditDecisions((result.decisions || []).join('\n'));
+        setEditTodos((result.todos || []).join('\n'));
+        setEditNextSchedule(result.nextSchedule || '');
+        setIsEditingResult(true);
+    };
+
+    // 編集完了
+    const finishEditingResult = () => {
+        if (!result) return;
+        setResult({
+            ...result,
+            summary: editSummary,
+            decisions: editDecisions.split('\n').filter(s => s.trim()),
+            todos: editTodos.split('\n').filter(s => s.trim()),
+            nextSchedule: editNextSchedule,
+        });
+        setIsEditingResult(false);
+    };
+
+    // TTS自動生成（裏で実行）
+    const triggerTtsInBackground = async (minuteId: number) => {
+        try {
+            const genRes = await fetch('/api/tts/generate', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ minute_id: minuteId }),
+            });
+            if (!genRes.ok) return;
+            const genData = await genRes.json();
+            const audioId = genData.audio_id;
+            if (!audioId || genData.status === 'ready') return;
+
+            // process-next ループ
+            let hasMore = true;
+            while (hasMore) {
+                const res = await fetch('/api/tts/process-next', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ audio_id: audioId }),
+                });
+                if (!res.ok) break;
+                const data = await res.json();
+                hasMore = data.has_more === true;
+                if (data.status === 'failed') break;
+            }
+            console.log('[TTS] Background generation complete for minute', minuteId);
+        } catch (e) {
+            console.error('[TTS] Background generation error:', e);
+        }
+    };
+
     // pocket-yasunobu テーブルに保存
     const saveMinutes = async () => {
         if (!result) return;
@@ -471,7 +533,7 @@ export default function VoiceRecorder({ userId, userName, onSaved, onCancel }: V
                 formattedMemo += '\n\n【次回予定】\n' + result.nextSchedule;
             }
 
-            const { error } = await supabase
+            const { data: inserted, error } = await supabase
                 .from('pocket-yasunobu')
                 .insert({
                     user_id: userId,
@@ -482,14 +544,21 @@ export default function VoiceRecorder({ userId, userName, onSaved, onCancel }: V
                     todos: result.todos || [],
                     next_schedule: result.nextSchedule || '',
                     keywords: result.keywords || [],
-                });
+                })
+                .select('id')
+                .single();
 
             if (error) {
                 console.error("Supabase Save Error:", error);
                 throw new Error(`${error.message} (Code: ${error.code})`);
             }
 
-            alert('保存しました');
+            // 裏でTTS音声を自動生成
+            if (inserted?.id) {
+                triggerTtsInBackground(inserted.id);
+            }
+
+            alert('保存しました（音声は裏で自動生成中）');
             onSaved();
         } catch (e: unknown) {
             console.error(e);
@@ -587,44 +656,74 @@ export default function VoiceRecorder({ userId, userName, onSaved, onCancel }: V
                         </div>
 
                         {/* Minutes content */}
-                        <div className="space-y-5">
-                            <div>
-                                <h4 className="text-[12px] font-bold text-slate-400 uppercase tracking-[0.5px] mb-2">要約</h4>
-                                <p className="text-[14px] text-slate-600 leading-[1.6] whitespace-pre-wrap">{result.summary}</p>
+                        {isEditingResult ? (
+                            <div className="space-y-4">
+                                <div>
+                                    <label htmlFor="edit-summary" className="block text-[12px] font-bold text-slate-400 uppercase tracking-[0.5px] mb-2">要約</label>
+                                    <textarea id="edit-summary" name="edit-summary" value={editSummary} onChange={(e) => setEditSummary(e.target.value)}
+                                        className="w-full h-56 bg-slate-50 border border-slate-200 rounded-[12px] p-4 text-[14px] text-slate-700 leading-[1.6] focus:border-violet-400 focus:bg-white focus:shadow-[0_0_0_4px_rgba(124,58,237,0.1)] outline-none resize-none transition-all" />
+                                </div>
+                                <div>
+                                    <label htmlFor="edit-decisions" className="block text-[12px] font-bold text-slate-400 uppercase tracking-[0.5px] mb-2">決定事項（1行に1項目）</label>
+                                    <textarea id="edit-decisions" name="edit-decisions" value={editDecisions} onChange={(e) => setEditDecisions(e.target.value)}
+                                        className="w-full h-28 bg-slate-50 border border-slate-200 rounded-[12px] p-4 text-[14px] text-slate-700 leading-[1.6] focus:border-violet-400 focus:bg-white focus:shadow-[0_0_0_4px_rgba(124,58,237,0.1)] outline-none resize-none transition-all" />
+                                </div>
+                                <div>
+                                    <label htmlFor="edit-todos" className="block text-[12px] font-bold text-slate-400 uppercase tracking-[0.5px] mb-2">TODO（1行に1項目）</label>
+                                    <textarea id="edit-todos" name="edit-todos" value={editTodos} onChange={(e) => setEditTodos(e.target.value)}
+                                        className="w-full h-28 bg-slate-50 border border-slate-200 rounded-[12px] p-4 text-[14px] text-slate-700 leading-[1.6] focus:border-violet-400 focus:bg-white focus:shadow-[0_0_0_4px_rgba(124,58,237,0.1)] outline-none resize-none transition-all" />
+                                </div>
+                                <div>
+                                    <label htmlFor="edit-next-schedule" className="block text-[12px] font-bold text-slate-400 uppercase tracking-[0.5px] mb-2">次回予定</label>
+                                    <input id="edit-next-schedule" name="edit-next-schedule" type="text" value={editNextSchedule} onChange={(e) => setEditNextSchedule(e.target.value)}
+                                        className="w-full bg-slate-50 border border-slate-200 rounded-[12px] px-4 py-3.5 text-[14px] text-slate-700 focus:border-violet-400 focus:bg-white focus:shadow-[0_0_0_4px_rgba(124,58,237,0.1)] outline-none transition-all" />
+                                </div>
+                                <button onClick={finishEditingResult}
+                                    className="w-full bg-emerald-500 text-white font-bold py-4 rounded-[14px] text-[15px] hover:bg-emerald-600 transition-all active:scale-[0.97] flex items-center justify-center gap-2">
+                                    <Check className="w-5 h-5" />
+                                    編集完了
+                                </button>
                             </div>
-                            {result.decisions && result.decisions.length > 0 && (
+                        ) : (
+                            <div className="space-y-5">
                                 <div>
-                                    <h4 className="text-[12px] font-bold text-slate-400 uppercase tracking-[0.5px] mb-2">決定事項</h4>
-                                    <ul className="space-y-1.5">
-                                        {result.decisions.map((d, i) => (
-                                            <li key={i} className="text-[14px] text-slate-600 flex gap-2">
-                                                <span className="text-violet-400 mt-0.5">•</span>
-                                                <span>{d}</span>
-                                            </li>
-                                        ))}
-                                    </ul>
+                                    <h4 className="text-[12px] font-bold text-slate-400 uppercase tracking-[0.5px] mb-2">要約</h4>
+                                    <p className="text-[14px] text-slate-600 leading-[1.6] whitespace-pre-wrap">{result.summary}</p>
                                 </div>
-                            )}
-                            {result.todos && result.todos.length > 0 && (
-                                <div>
-                                    <h4 className="text-[12px] font-bold text-slate-400 uppercase tracking-[0.5px] mb-2">TODO</h4>
-                                    <ul className="space-y-1.5">
-                                        {result.todos.map((t, i) => (
-                                            <li key={i} className="text-[14px] text-slate-600 flex gap-2">
-                                                <span className="text-violet-400 mt-0.5">•</span>
-                                                <span>{t}</span>
-                                            </li>
-                                        ))}
-                                    </ul>
-                                </div>
-                            )}
-                            {result.nextSchedule && (
-                                <div>
-                                    <h4 className="text-[12px] font-bold text-slate-400 uppercase tracking-[0.5px] mb-2">次回予定</h4>
-                                    <p className="text-[14px] text-slate-600">{result.nextSchedule}</p>
-                                </div>
-                            )}
-                        </div>
+                                {result.decisions && result.decisions.length > 0 && (
+                                    <div>
+                                        <h4 className="text-[12px] font-bold text-slate-400 uppercase tracking-[0.5px] mb-2">決定事項</h4>
+                                        <ul className="space-y-1.5">
+                                            {result.decisions.map((d, i) => (
+                                                <li key={i} className="text-[14px] text-slate-600 flex gap-2">
+                                                    <span className="text-violet-400 mt-0.5">•</span>
+                                                    <span>{d}</span>
+                                                </li>
+                                            ))}
+                                        </ul>
+                                    </div>
+                                )}
+                                {result.todos && result.todos.length > 0 && (
+                                    <div>
+                                        <h4 className="text-[12px] font-bold text-slate-400 uppercase tracking-[0.5px] mb-2">TODO</h4>
+                                        <ul className="space-y-1.5">
+                                            {result.todos.map((t, i) => (
+                                                <li key={i} className="text-[14px] text-slate-600 flex gap-2">
+                                                    <span className="text-violet-400 mt-0.5">•</span>
+                                                    <span>{t}</span>
+                                                </li>
+                                            ))}
+                                        </ul>
+                                    </div>
+                                )}
+                                {result.nextSchedule && (
+                                    <div>
+                                        <h4 className="text-[12px] font-bold text-slate-400 uppercase tracking-[0.5px] mb-2">次回予定</h4>
+                                        <p className="text-[14px] text-slate-600">{result.nextSchedule}</p>
+                                    </div>
+                                )}
+                            </div>
+                        )}
 
                         {/* PDF export button */}
                         <button
@@ -640,6 +739,15 @@ export default function VoiceRecorder({ userId, userName, onSaved, onCancel }: V
                             <Download className="w-5 h-5" />
                             PDFで出力
                         </button>
+
+                        {/* Edit button */}
+                        {!isEditingResult && (
+                            <button onClick={startEditingResult}
+                                className="w-full bg-amber-50 text-amber-600 font-bold py-4 rounded-[14px] text-[15px] hover:bg-amber-100 transition-all active:scale-[0.97] flex items-center justify-center gap-2 border border-amber-200">
+                                <Pencil className="w-5 h-5" />
+                                編集する
+                            </button>
+                        )}
 
                         {/* Save button */}
                         <button onClick={saveMinutes}
