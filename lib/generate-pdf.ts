@@ -12,6 +12,17 @@ interface PdfMinutesData {
     keywords?: string[];
 }
 
+// A4 レイアウト定数 (mm)
+const PAGE_WIDTH = 210;
+const PAGE_HEIGHT = 297;
+const MARGIN_TOP = 16;
+const MARGIN_BOTTOM = 24; // 下余白を広めに（ページ番号スペース含む）
+const MARGIN_LEFT = 14;
+const MARGIN_RIGHT = 14;
+const CONTENT_WIDTH = PAGE_WIDTH - MARGIN_LEFT - MARGIN_RIGHT;
+const CONTENT_HEIGHT = PAGE_HEIGHT - MARGIN_TOP - MARGIN_BOTTOM;
+const PAGE_NUMBER_Y = PAGE_HEIGHT - 12; // ページ番号のY位置（下端から12mm）
+
 export async function generateMinutesPdf(data: PdfMinutesData): Promise<void> {
     const dateStr = data.createdAt
         ? new Date(data.createdAt).toLocaleDateString('ja-JP', { year: 'numeric', month: '2-digit', day: '2-digit' })
@@ -118,26 +129,60 @@ export async function generateMinutesPdf(data: PdfMinutesData): Promise<void> {
             backgroundColor: '#ffffff',
         });
 
-        const imgWidth = 210; // A4 width in mm
-        const pageHeight = 297; // A4 height in mm
-        const margin = 10;
-        const contentWidth = imgWidth - margin * 2;
-        const imgHeight = (canvas.height * contentWidth) / canvas.width;
-
+        const imgHeight = (canvas.height * CONTENT_WIDTH) / canvas.width;
         const pdf = new jsPDF('p', 'mm', 'a4');
+
         let heightLeft = imgHeight;
-        let position = margin;
+        let currentPage = 1;
+        let srcY = 0; // キャンバス上のY座標（mm換算）
 
-        // First page
-        pdf.addImage(canvas.toDataURL('image/png'), 'PNG', margin, position, contentWidth, imgHeight);
-        heightLeft -= (pageHeight - margin * 2);
+        // 1ページ目
+        pdf.addImage(
+            canvas.toDataURL('image/png'), 'PNG',
+            MARGIN_LEFT, MARGIN_TOP,
+            CONTENT_WIDTH, imgHeight
+        );
+        heightLeft -= CONTENT_HEIGHT;
 
-        // Additional pages if content overflows
+        // 追加ページ
         while (heightLeft > 0) {
-            position = -(pageHeight - margin * 2) + margin + (imgHeight - heightLeft - (pageHeight - margin * 2));
             pdf.addPage();
-            pdf.addImage(canvas.toDataURL('image/png'), 'PNG', margin, margin - (imgHeight - heightLeft), contentWidth, imgHeight);
-            heightLeft -= (pageHeight - margin * 2);
+            currentPage++;
+            srcY += CONTENT_HEIGHT;
+
+            // 画像をオフセットして配置（上部が切れる形で次ページ分を表示）
+            pdf.addImage(
+                canvas.toDataURL('image/png'), 'PNG',
+                MARGIN_LEFT, MARGIN_TOP - srcY,
+                CONTENT_WIDTH, imgHeight
+            );
+            heightLeft -= CONTENT_HEIGHT;
+        }
+
+        const totalPages = currentPage;
+
+        // 全ページにページ番号を追加
+        for (let i = 1; i <= totalPages; i++) {
+            pdf.setPage(i);
+
+            // コンテンツ領域外（前ページの画像はみ出し）を白で塗りつぶし
+            if (i > 1) {
+                pdf.setFillColor(255, 255, 255);
+                pdf.rect(0, 0, PAGE_WIDTH, MARGIN_TOP, 'F'); // 上マージン
+            }
+            // 下マージン領域を白で塗りつぶし（画像がはみ出す場合の対策）
+            pdf.setFillColor(255, 255, 255);
+            pdf.rect(0, PAGE_HEIGHT - MARGIN_BOTTOM, PAGE_WIDTH, MARGIN_BOTTOM, 'F');
+
+            // ページ番号描画
+            pdf.setFontSize(9);
+            pdf.setTextColor(148, 163, 184); // slate-400
+            pdf.text(
+                `${i}`,
+                PAGE_WIDTH / 2,
+                PAGE_NUMBER_Y,
+                { align: 'center' }
+            );
         }
 
         const fileName = `議事録_${data.customerName || '名称なし'}_${dateStr.replace(/\//g, '')}.pdf`;
