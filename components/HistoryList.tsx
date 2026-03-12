@@ -389,16 +389,31 @@ export default function HistoryList({ userId, userName, refreshTrigger, initialS
                                                             .eq('minute_id', minuteId);
                                                     }
 
-                                                    // 4. Storageの音声ファイルを削除
-                                                    const { data: storageFiles } = await supabase.storage
+                                                    // 4. Storageの音声ファイルを削除（audio_idサブフォルダ対応）
+                                                    if (audioJobs && audioJobs.length > 0) {
+                                                        for (const job of audioJobs) {
+                                                            const prefix = `tts/${minuteId}/${job.id}`;
+                                                            const { data: files } = await supabase.storage
+                                                                .from('tts-audio')
+                                                                .list(prefix);
+                                                            if (files && files.length > 0) {
+                                                                await supabase.storage
+                                                                    .from('tts-audio')
+                                                                    .remove(files.map(f => `${prefix}/${f.name}`));
+                                                            }
+                                                        }
+                                                    }
+                                                    // 旧パス（audio_idなし）のファイルも削除
+                                                    const { data: legacyFiles } = await supabase.storage
                                                         .from('tts-audio')
                                                         .list(`tts/${minuteId}`);
-
-                                                    if (storageFiles && storageFiles.length > 0) {
-                                                        const filePaths = storageFiles.map(f => `tts/${minuteId}/${f.name}`);
-                                                        await supabase.storage
-                                                            .from('tts-audio')
-                                                            .remove(filePaths);
+                                                    if (legacyFiles && legacyFiles.length > 0) {
+                                                        const filesToDelete = legacyFiles.filter(f => f.name.endsWith('.wav'));
+                                                        if (filesToDelete.length > 0) {
+                                                            await supabase.storage
+                                                                .from('tts-audio')
+                                                                .remove(filesToDelete.map(f => `tts/${minuteId}/${f.name}`));
+                                                        }
                                                     }
 
                                                     // 5. 議事録レコードを削除
