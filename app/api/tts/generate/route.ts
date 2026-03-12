@@ -9,7 +9,7 @@ const TABLE_NAME = 'pocket-yasunobu';
 /**
  * POST /api/tts/generate
  * ジョブ作成のみ→即座にレスポンス
- * 実際のチャンク処理は /api/tts/process-next でフロントエンドから駆動
+ * 実際のチャンク処理はVPS側ワーカーが自動的にピックアップ
  */
 export async function POST(req: NextRequest) {
   try {

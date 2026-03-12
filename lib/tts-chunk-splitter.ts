@@ -11,9 +11,9 @@
  */
 
 // ── チューニング定数（変更しやすいようにまとめて定義）──
-export const TARGET_CHUNK_SIZE = 100;   // 目標チャンクサイズ（日本語文字数）
-export const HARD_MAX = 150;            // 1チャンク絶対上限
-export const MIN_CHUNK_SIZE = 50;       // 最小チャンクサイズ
+export const TARGET_CHUNK_SIZE = 180;   // 目標チャンクサイズ（日本語文字数）
+export const HARD_MAX = 260;            // 1チャンク絶対上限（4GB VPS対応）
+export const MIN_CHUNK_SIZE = 80;       // 最小チャンクサイズ
 
 // 文の区切りとして認識する文字（優先度順）
 // 「、」（読点）では区切らない — 文の途中で切れて不自然になるため
