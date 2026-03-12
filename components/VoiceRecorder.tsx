@@ -485,7 +485,7 @@ export default function VoiceRecorder({ userId, userName, onSaved, onCancel }: V
         setIsEditingResult(false);
     };
 
-    // TTS自動生成（裏で実行）
+    // TTS自動生成（ジョブ作成のみ → VPSワーカーが処理）
     const triggerTtsInBackground = async (minuteId: number) => {
         try {
             const genRes = await fetch('/api/tts/generate', {
@@ -494,26 +494,9 @@ export default function VoiceRecorder({ userId, userName, onSaved, onCancel }: V
                 body: JSON.stringify({ minute_id: minuteId }),
             });
             if (!genRes.ok) return;
-            const genData = await genRes.json();
-            const audioId = genData.audio_id;
-            if (!audioId || genData.status === 'ready') return;
-
-            // process-next ループ
-            let hasMore = true;
-            while (hasMore) {
-                const res = await fetch('/api/tts/process-next', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ audio_id: audioId }),
-                });
-                if (!res.ok) break;
-                const data = await res.json();
-                hasMore = data.has_more === true;
-                if (data.status === 'failed') break;
-            }
-            console.log('[TTS] Background generation complete for minute', minuteId);
+            console.log('[TTS] Job created for minute', minuteId, '- VPS worker will process');
         } catch (e) {
-            console.error('[TTS] Background generation error:', e);
+            console.error('[TTS] Job creation error:', e);
         }
     };
 
