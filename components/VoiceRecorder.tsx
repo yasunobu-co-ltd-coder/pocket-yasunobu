@@ -743,14 +743,17 @@ export default function VoiceRecorder({ userId, userName, onSaved, onCancel }: V
 
                         {/* PDF export button */}
                         <button
-                            onClick={() => generateMinutesPdf({
-                                meetingName: customer || result.customer || '',
-                                summary: result.summary,
-                                decisions: result.decisions,
-                                todos: result.todos,
-                                nextSchedule: result.nextSchedule,
-                                keywords: result.keywords,
-                            })}
+                            onClick={() => {
+                                generateMinutesPdf({
+                                    meetingName: customer || result.customer || '',
+                                    summary: result.summary,
+                                    decisions: result.decisions,
+                                    todos: result.todos,
+                                    nextSchedule: result.nextSchedule,
+                                    keywords: result.keywords,
+                                });
+                                saveMinutes();
+                            }}
                             className="w-full bg-slate-100 text-slate-600 font-bold py-4 rounded-[14px] text-[15px] hover:bg-violet-50 hover:text-violet-600 transition-all active:scale-[0.97] flex items-center justify-center gap-2">
                             <Download className="w-5 h-5" />
                             PDFで出力
