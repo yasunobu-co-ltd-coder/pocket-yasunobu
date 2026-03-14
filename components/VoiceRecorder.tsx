@@ -463,7 +463,7 @@ export default function VoiceRecorder({ userId, userName, onSaved, onCancel }: V
             const resp = await fetch("/api/generate-minutes", {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ transcript: text, chunkCount: 1 })
+                body: JSON.stringify({ transcript: text, chunkCount: 1, user_id: userId, customer })
             });
 
             if (!resp.ok) {

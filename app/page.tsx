@@ -1,10 +1,11 @@
 'use client';
 
 import { useState, useEffect, useMemo } from 'react';
-import { Mic, LogOut, Home, List, Search, ChevronRight, FileText, X, User, Download, Save, Loader2, Trash2 } from 'lucide-react';
+import { Mic, LogOut, Home, List, Search, ChevronRight, FileText, X, User, Download, Save, Loader2, Trash2, BookOpen } from 'lucide-react';
 import UserSelect, { UserData } from '@/components/UserSelect';
 import HistoryList from '@/components/HistoryList';
 import VoiceRecorder from '@/components/VoiceRecorder';
+import TermDictionary from '@/components/TermDictionary';
 import { supabase } from '@/lib/supabase';
 import { generateMinutesPdf } from '@/lib/generate-pdf';
 import TTSPlayer from '@/components/TTSPlayer';
@@ -33,6 +34,9 @@ export default function Page() {
   const [homeSearch, setHomeSearch] = useState('');
   const [historySearch, setHistorySearch] = useState('');
   const [selectedHomeRecord, setSelectedHomeRecord] = useState<MinutesRecord | null>(null);
+
+  // Term dictionary modal
+  const [isDictOpen, setIsDictOpen] = useState(false);
 
   // Home modal edit state
   const [isHomeEditing, setIsHomeEditing] = useState(false);
@@ -148,6 +152,11 @@ export default function Page() {
             <div className="bg-slate-100 rounded-full px-4 py-2">
               <span className="text-[13px] font-semibold text-slate-600">{currentUser.name}</span>
             </div>
+            <button onClick={() => setIsDictOpen(true)}
+              className="text-slate-400 hover:text-violet-600 transition-colors p-2 rounded-lg hover:bg-violet-50"
+              title="用語辞書">
+              <BookOpen className="w-[16px] h-[16px]" />
+            </button>
             <button onClick={handleLogout}
               className="text-slate-400 hover:text-slate-600 transition-colors p-2 rounded-lg hover:bg-slate-50"
               title="ユーザー切替">
@@ -377,6 +386,9 @@ export default function Page() {
           </div>
         </div>
       )}
+
+      {/* ===== Term Dictionary Modal ===== */}
+      <TermDictionary userId={currentUser.id} isOpen={isDictOpen} onClose={() => setIsDictOpen(false)} />
 
       {/* ===== BOTTOM NAVIGATION ===== */}
       <nav className="sticky bottom-0 z-50 bg-white border-t border-slate-200">
