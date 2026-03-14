@@ -2,7 +2,7 @@
  * TTS用テキスト分割ユーティリティ
  *
  * セクション単位で分割し、長いセクションのみ文区切りでサブ分割する。
- * 4GB VPSでのVOICEVOX推論を安定させつつ、チャンク数を抑えて高速化。
+ * 見出し行は独立チャンクにして「議題→本文」の間に自然な間を作る。
  *
  * ─── チューニング定数 ───
  * TARGET_CHUNK_SIZE: 文区切り探索の目標サイズ（この付近で分割を試みる）
@@ -11,9 +11,9 @@
  */
 
 // ── チューニング定数（変更しやすいようにまとめて定義）──
-export const TARGET_CHUNK_SIZE = 180;   // 目標チャンクサイズ（日本語文字数）
-export const HARD_MAX = 260;            // 1チャンク絶対上限（4GB VPS対応）
-export const MIN_CHUNK_SIZE = 80;       // 最小チャンクサイズ
+export const TARGET_CHUNK_SIZE = 250;   // 目標チャンクサイズ（日本語文字数）
+export const HARD_MAX = 350;            // 1チャンク絶対上限（4GB VPS対応）
+export const MIN_CHUNK_SIZE = 20;       // 最小チャンクサイズ（見出しの独立を許可）
 
 // 文の区切りとして認識する文字（優先度順）
 // 「、」（読点）では区切らない — 文の途中で切れて不自然になるため
@@ -35,8 +35,9 @@ function normalizeText(text: string): string {
 
 /**
  * テキストをセクション（意味ブロック）に分割
- * - 見出し行（■●▶◆★【# ## ###）で区切る
+ * - 見出し行（■●▶◆★【# ## ###）は独立セクションにする
  * - 空行2行連続でも区切る
+ * - 見出し＋本文が別チャンクになり、読み上げ時に自然な間ができる
  */
 function splitIntoSections(text: string): string[] {
   const lines = text.split('\n');
@@ -60,9 +61,11 @@ function splitIntoSections(text: string): string[] {
       continue;
     }
 
-    // 見出し行 → 新セクション開始
-    if (trimmed && HEADING_PATTERN.test(trimmed) && current.length > 0) {
+    // 見出し行 → 前のセクションを確定し、見出しだけで1セクション
+    if (trimmed && HEADING_PATTERN.test(trimmed)) {
       flushSection();
+      sections.push(trimmed);
+      continue;
     }
 
     current.push(line);
@@ -137,11 +140,39 @@ function splitLongSection(text: string): string[] {
 }
 
 /**
+ * 隣接する短いチャンクを結合（見出し以外同士でHARD_MAX以下なら結合）
+ */
+function mergeShortChunks(chunks: string[]): string[] {
+  if (chunks.length <= 1) return chunks;
+  const merged: string[] = [];
+  let buffer = chunks[0];
+
+  for (let i = 1; i < chunks.length; i++) {
+    const next = chunks[i];
+    const nextIsHeading = HEADING_PATTERN.test(next.trim());
+    const bufferIsHeading = HEADING_PATTERN.test(buffer.trim());
+
+    if (nextIsHeading || bufferIsHeading) {
+      merged.push(buffer);
+      buffer = next;
+    } else if (buffer.length + next.length + 1 <= HARD_MAX) {
+      buffer = buffer + '\n' + next;
+    } else {
+      merged.push(buffer);
+      buffer = next;
+    }
+  }
+  merged.push(buffer);
+  return merged;
+}
+
+/**
  * テキストをセクション単位でチャンクに分割する
  *
- * 1. セクション（見出し/空行区切り）に分割
+ * 1. セクション（見出し/空行区切り）に分割 — 見出しは独立チャンク
  * 2. HARD_MAX以下のセクションはそのまま1チャンク
  * 3. 超えるセクションは文区切りでサブ分割
+ * 4. 隣接する短い非見出しチャンクを結合
  */
 export function splitTextIntoChunks(text: string): string[] {
   const normalized = normalizeText(text);
@@ -149,18 +180,18 @@ export function splitTextIntoChunks(text: string): string[] {
   if (normalized.length <= HARD_MAX) return [normalized];
 
   const sections = splitIntoSections(normalized);
-  const chunks: string[] = [];
+  const rawChunks: string[] = [];
 
   for (const section of sections) {
     if (section.length <= HARD_MAX) {
-      chunks.push(section);
+      rawChunks.push(section);
     } else {
       const subChunks = splitLongSection(section);
-      chunks.push(...subChunks);
+      rawChunks.push(...subChunks);
     }
   }
 
-  return chunks;
+  return mergeShortChunks(rawChunks);
 }
 
 /**
