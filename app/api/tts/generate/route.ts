@@ -56,7 +56,7 @@ export async function POST(req: NextRequest) {
           cached: true,
         });
       }
-      if (existing.status === 'generating') {
+      if (existing.status === 'generating' || existing.status === 'processing') {
         return NextResponse.json({
           audio_id: existing.id,
           status: 'generating',
@@ -86,6 +86,8 @@ export async function POST(req: NextRequest) {
             current_chunk_index: 0,
             progress_text: `0 / ${totalChunks}`,
             error_message: null,
+            locked_by: null,
+            processing_started_at: null,
           })
           .eq('id', existing.id);
 
