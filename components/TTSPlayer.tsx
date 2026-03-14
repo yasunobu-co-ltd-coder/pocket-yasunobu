@@ -273,6 +273,29 @@ export default function TTSPlayer({ minuteId, summaryText }: TTSPlayerProps) {
     setProgress(0);
   };
 
+  const handleSeek = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const val = parseFloat(e.target.value);
+    const currentChunks = chunksRef.current;
+    if (currentChunks.length === 0) return;
+
+    // パーセントからチャンクインデックスを算出
+    const targetChunk = Math.min(
+      Math.floor((val / 100) * currentChunks.length),
+      currentChunks.length - 1
+    );
+
+    setProgress(val);
+    setCurrentChunkIndex(targetChunk);
+
+    if (status === 'playing' || status === 'paused') {
+      // 再生中 or 一時停止中 → そのチャンクから再生再開
+      if (audioRef.current) { audioRef.current.pause(); audioRef.current = null; }
+      isPlayingRef.current = true;
+      setStatus('playing');
+      playChunk(targetChunk);
+    }
+  };
+
   // ===== レンダリング =====
 
   if (status === 'not_generated') {
@@ -336,10 +359,23 @@ export default function TTSPlayer({ minuteId, summaryText }: TTSPlayerProps) {
   // Ready / Playing / Paused
   return (
     <div className="w-full bg-slate-50 rounded-[14px] p-4 space-y-3">
-      <div className="w-full h-[6px] bg-slate-200 rounded-full overflow-hidden">
-        <div className="h-full bg-emerald-500 rounded-full transition-all duration-300"
-          style={{ width: `${progress}%` }} />
-      </div>
+      {/* シーク可能なプログレスバー */}
+      <input
+        type="range"
+        min={0}
+        max={100}
+        step={0.1}
+        value={progress}
+        onChange={handleSeek}
+        className="w-full h-[6px] appearance-none bg-slate-200 rounded-full cursor-pointer accent-emerald-500
+          [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:w-4 [&::-webkit-slider-thumb]:h-4
+          [&::-webkit-slider-thumb]:bg-emerald-500 [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:shadow-md
+          [&::-moz-range-thumb]:w-4 [&::-moz-range-thumb]:h-4 [&::-moz-range-thumb]:bg-emerald-500
+          [&::-moz-range-thumb]:rounded-full [&::-moz-range-thumb]:border-0"
+        style={{
+          background: `linear-gradient(to right, #10b981 0%, #10b981 ${progress}%, #e2e8f0 ${progress}%, #e2e8f0 100%)`,
+        }}
+      />
 
       {(status === 'playing' || status === 'paused') && (
         <div className="text-[12px] text-slate-400 text-center">
