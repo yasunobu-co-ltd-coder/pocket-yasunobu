@@ -25,7 +25,16 @@ export default function TTSPlayer({ minuteId, summaryText }: TTSPlayerProps) {
   const [status, setStatus] = useState<TTSStatus>('not_generated');
   const [chunks, setChunks] = useState<AudioChunk[]>([]);
   const [currentChunkIndex, setCurrentChunkIndex] = useState(0);
-  const [speed, setSpeed] = useState<number>(1);
+  const [speed, setSpeed] = useState<number>(() => {
+    if (typeof window !== 'undefined') {
+      const saved = localStorage.getItem('tts-speed');
+      if (saved) {
+        const parsed = parseFloat(saved);
+        if (!isNaN(parsed) && [1, 1.25, 1.5, 2].includes(parsed)) return parsed;
+      }
+    }
+    return 1;
+  });
   const [errorMsg, setErrorMsg] = useState('');
   const [progress, setProgress] = useState(0);
 
@@ -45,6 +54,7 @@ export default function TTSPlayer({ minuteId, summaryText }: TTSPlayerProps) {
   useEffect(() => {
     speedRef.current = speed;
     if (audioRef.current) audioRef.current.playbackRate = speed;
+    localStorage.setItem('tts-speed', String(speed));
   }, [speed]);
 
   useEffect(() => {
