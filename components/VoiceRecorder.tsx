@@ -92,7 +92,7 @@ export default function VoiceRecorder({ userId, userName, onSaved, onCancel }: V
     const finalTranscriptRef = useRef<string>('');
 
     // Upload State
-    const [uploadedFile, setUploadedFile] = useState<File | null>(null);
+    const [uploadedFiles, setUploadedFiles] = useState<File[]>([]);
     const audioFileInputRef = useRef<HTMLInputElement>(null);
 
     // Processing State
@@ -364,48 +364,74 @@ export default function VoiceRecorder({ userId, userName, onSaved, onCancel }: V
         return data.text || '';
     };
 
+    const transcribeOneFile = async (file: File): Promise<string> => {
+        if (file.size <= 4 * 1024 * 1024) {
+            return await transcribeSingleFile(file);
+        } else {
+            try {
+                return await transcribeWithChunking(file);
+            } catch (chunkError) {
+                console.warn('クライアント側の音声分割に失敗、サーバーで処理します:', chunkError);
+                return await transcribeServerSide(file);
+            }
+        }
+    };
+
     const handleAudioFileSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
-        const file = e.target.files?.[0];
-        if (!file) return;
+        const fileList = e.target.files;
+        if (!fileList || fileList.length === 0) return;
 
         const allowedExtensions = ['.mp3', '.m4a', '.wav', '.webm'];
-        const ext = '.' + file.name.split('.').pop()?.toLowerCase();
-        if (!allowedExtensions.includes(ext)) {
-            alert('対応していないファイル形式です。\nmp3, m4a, wav, webm ファイルをお選びください。');
+        const files: File[] = [];
+        let totalSize = 0;
+
+        for (let i = 0; i < fileList.length; i++) {
+            const file = fileList[i];
+            const ext = '.' + file.name.split('.').pop()?.toLowerCase();
+            if (!allowedExtensions.includes(ext)) {
+                alert(`対応していないファイル形式です: ${file.name}\nmp3, m4a, wav, webm ファイルをお選びください。`);
+                return;
+            }
+            totalSize += file.size;
+            files.push(file);
+        }
+
+        const MAX_TOTAL_SIZE = 400 * 1024 * 1024;
+        if (totalSize > MAX_TOTAL_SIZE) {
+            alert(`合計ファイルサイズが大きすぎます（${(totalSize / 1024 / 1024).toFixed(0)}MB）。\n合計400MB以下にしてください。`);
             return;
         }
 
-        const MAX_FILE_SIZE = 400 * 1024 * 1024;
-        if (file.size > MAX_FILE_SIZE) {
-            alert(`ファイルサイズが大きすぎます（${(file.size / 1024 / 1024).toFixed(0)}MB）。\n400MB以下のファイルをお選びください。`);
-            return;
-        }
+        // ファイル名でソート（時系列順になりやすい）
+        files.sort((a, b) => a.name.localeCompare(b.name, 'ja'));
 
-        setUploadedFile(file);
+        setUploadedFiles(files);
         setInputMode('uploading');
         setIsProcessing(true);
-        setProcessStep('音声ファイルを文字起こし中...');
 
         try {
-            let transcript: string;
+            const transcripts: string[] = [];
 
-            if (file.size <= 4 * 1024 * 1024) {
-                // 4MB以下: Whisper APIに直接送信
-                transcript = await transcribeSingleFile(file);
-            } else {
-                // 4MB超: クライアント側でWAVチャンクに分割して送信（Vercel 4.5MB制限対策）
-                try {
-                    transcript = await transcribeWithChunking(file);
-                } catch (chunkError) {
-                    console.warn('クライアント側の音声分割に失敗、サーバーで処理します:', chunkError);
-                    transcript = await transcribeServerSide(file);
+            for (let i = 0; i < files.length; i++) {
+                const file = files[i];
+                if (files.length > 1) {
+                    setProcessStep(`音声ファイルを文字起こし中... (${i + 1}/${files.length}: ${file.name})`);
+                } else {
+                    setProcessStep('音声ファイルを文字起こし中...');
+                }
+
+                const text = await transcribeOneFile(file);
+                if (text.trim()) {
+                    transcripts.push(text.trim());
                 }
             }
 
-            if (transcript.trim()) {
-                setEditableTranscript(transcript.trim());
+            const combined = transcripts.join('\n\n');
+
+            if (combined.trim()) {
+                setEditableTranscript(combined.trim());
                 setProcessStep('議事録を作成中...');
-                await generateMinutes(transcript.trim());
+                await generateMinutes(combined.trim());
             } else {
                 alert('音声を認識できませんでした。ファイルを確認してください。');
                 setInputMode('select');
@@ -418,6 +444,9 @@ export default function VoiceRecorder({ userId, userName, onSaved, onCancel }: V
             setInputMode('select');
             setIsProcessing(false);
         }
+
+        // input をリセット（同じファイルを再選択可能に）
+        if (e.target) e.target.value = '';
     };
 
     // 議事録生成（引数があればそちらを使用、なければ editableTranscript）
@@ -557,7 +586,7 @@ export default function VoiceRecorder({ userId, userName, onSaved, onCancel }: V
         setLiveTranscript('');
         finalTranscriptRef.current = '';
         setTimer(0);
-        setUploadedFile(null);
+        setUploadedFiles([]);
         setInputMode('select');
     };
 
@@ -567,8 +596,12 @@ export default function VoiceRecorder({ userId, userName, onSaved, onCancel }: V
             <div className="bg-white rounded-[20px] p-12 text-center border border-slate-200 shadow-[0_10px_25px_-5px_rgba(0,0,0,0.05)]">
                 <Loader2 className="w-10 h-10 text-violet-500 animate-spin mx-auto mb-5" />
                 <p className="text-slate-700 font-semibold text-[15px] mb-1">{processStep}</p>
-                {uploadedFile && (
-                    <p className="text-[13px] text-slate-400 mt-2">{uploadedFile.name}</p>
+                {uploadedFiles.length > 0 && (
+                    <p className="text-[13px] text-slate-400 mt-2">
+                        {uploadedFiles.length === 1
+                            ? uploadedFiles[0].name
+                            : `${uploadedFiles.length}ファイル選択中`}
+                    </p>
                 )}
             </div>
         );
@@ -838,17 +871,17 @@ export default function VoiceRecorder({ userId, userName, onSaved, onCancel }: V
                     </div>
                     <div className="flex-1 text-left">
                         <div className="text-[15px] font-bold text-slate-800">ファイルから</div>
-                        <div className="text-[12px] text-slate-400 mt-0.5">ボイスメモ等を共有</div>
+                        <div className="text-[12px] text-slate-400 mt-0.5">ボイスメモ等を共有（複数可）</div>
                     </div>
                     <ChevronRight className="w-4 h-4 text-slate-300 group-hover:text-violet-400 transition-colors flex-shrink-0" />
                 </button>
             </div>
 
-            <input id="audio-file-input" name="audio-file" type="file" ref={audioFileInputRef} accept=".mp3,.m4a,.wav,.webm,audio/*" hidden onChange={handleAudioFileSelect} />
+            <input id="audio-file-input" name="audio-file" type="file" ref={audioFileInputRef} accept=".mp3,.m4a,.wav,.webm,audio/*" multiple hidden onChange={handleAudioFileSelect} />
 
             <p className="text-[12px] text-slate-300 text-center flex items-center justify-center gap-1.5 pt-2">
                 <FileAudio className="w-3 h-3" />
-                対応形式: mp3, m4a, wav, webm (最大400MB)
+                対応形式: mp3, m4a, wav, webm (複数選択可・合計最大400MB)
             </p>
         </div>
     );
