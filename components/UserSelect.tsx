@@ -346,12 +346,10 @@ export default function UserSelect({ onSelect }: UserSelectProps) {
                 <div className="w-20 h-20 bg-gradient-to-br from-violet-600 to-violet-800 rounded-[22px] flex items-center justify-center mx-auto mb-6 shadow-[0_8px_20px_rgba(124,58,237,0.35)]">
                     <Mic className="w-9 h-9 text-white" />
                 </div>
-                <div className="flex items-center justify-center gap-3 mb-2">
-                    <h1 className="font-extrabold text-[26px] bg-gradient-to-r from-violet-800 to-violet-500 bg-clip-text text-transparent tracking-[-0.5px]">
-                        Pocket Yasunobu
-                    </h1>
-                    <span className="text-[11px] text-slate-300 font-mono select-all">v0.1.0 / {process.env.NEXT_PUBLIC_GIT_HASH || 'dev'}</span>
-                </div>
+                <h1 className="font-extrabold text-[26px] bg-gradient-to-r from-violet-800 to-violet-500 bg-clip-text text-transparent tracking-[-0.5px] mb-1">
+                    Pocket Yasunobu
+                </h1>
+                <p className="text-[11px] text-slate-300 font-mono select-all mb-1">v0.1.0 / {process.env.NEXT_PUBLIC_GIT_HASH || 'dev'}</p>
                 <p className="text-slate-400 text-[13px]">AI議事録アシスタント</p>
             </div>
 
