@@ -3,7 +3,7 @@
 import { useState, useRef, useEffect, useCallback, forwardRef, useImperativeHandle } from 'react';
 import { Volume2, Play, Pause, Square, Loader2, RotateCcw } from 'lucide-react';
 
-type TTSStatus = 'not_generated' | 'generating' | 'ready' | 'playing' | 'paused' | 'error';
+type TTSStatus = 'loading' | 'not_generated' | 'generating' | 'ready' | 'playing' | 'paused' | 'error';
 
 interface AudioChunk {
   id: string;
@@ -42,7 +42,7 @@ const TTSPlayer = forwardRef<TTSPlayerHandle, TTSPlayerProps>(function TTSPlayer
   { minuteId, summaryText, clientName, onPlaybackChange, onProgressChange },
   ref
 ) {
-  const [status, setStatus] = useState<TTSStatus>('not_generated');
+  const [status, setStatus] = useState<TTSStatus>('loading');
   const [chunks, setChunks] = useState<AudioChunk[]>([]);
   const [currentChunkIndex, setCurrentChunkIndex] = useState(0);
   const [speed, setSpeed] = useState<number>(() => {
@@ -443,6 +443,14 @@ const TTSPlayer = forwardRef<TTSPlayerHandle, TTSPlayerProps>(function TTSPlayer
   );
 
   // ===== レンダリング =====
+
+  if (status === 'loading') {
+    return (
+      <div className="w-full flex items-center justify-center py-4">
+        <Loader2 className="w-5 h-5 animate-spin text-slate-300" />
+      </div>
+    );
+  }
 
   if (status === 'not_generated') {
     return (
