@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useRef, useEffect, useCallback } from 'react';
-import { Volume2, Play, Pause, Square, Loader2, RotateCcw, ChevronDown } from 'lucide-react';
+import { Volume2, Play, Pause, Square, Loader2, RotateCcw } from 'lucide-react';
 
 type TTSStatus = 'not_generated' | 'generating' | 'ready' | 'playing' | 'paused' | 'error';
 
@@ -53,7 +53,6 @@ export default function TTSPlayer({ minuteId, summaryText }: TTSPlayerProps) {
     }
     return 3; // デフォルト: ずんだもん
   });
-  const [showVoiceMenu, setShowVoiceMenu] = useState(false);
   const [errorMsg, setErrorMsg] = useState('');
   const [progress, setProgress] = useState(0);
 
@@ -373,41 +372,22 @@ export default function TTSPlayer({ minuteId, summaryText }: TTSPlayerProps) {
     }
   };
 
-  const selectedVoice = VOICE_OPTIONS.find(v => v.id === speakerId) || VOICE_OPTIONS[1];
-
-  // ===== 声選択ドロップダウン =====
-  const voiceSelector = (compact = false) => (
-    <div className="relative">
-      <button
-        onClick={() => setShowVoiceMenu(!showVoiceMenu)}
-        className={`flex items-center gap-2 rounded-[10px] border border-slate-200 bg-white hover:bg-slate-50 transition-all ${
-          compact ? 'px-3 py-1.5 text-[12px]' : 'px-4 py-2.5 text-[13px]'
-        }`}
-      >
-        <span className="font-bold text-slate-700">{selectedVoice.name}</span>
-        <ChevronDown className={`w-3.5 h-3.5 text-slate-400 transition-transform ${showVoiceMenu ? 'rotate-180' : ''}`} />
-      </button>
-      {showVoiceMenu && (
-        <>
-          <div className="fixed inset-0 z-[60]" onClick={() => setShowVoiceMenu(false)} />
-          <div className="absolute bottom-full mb-1 left-0 w-[220px] bg-white rounded-[12px] border border-slate-200 shadow-lg z-[61] overflow-hidden">
-            {VOICE_OPTIONS.map(v => (
-              <button
-                key={v.id}
-                onClick={() => { handleVoiceChange(v.id); setShowVoiceMenu(false); }}
-                className={`w-full text-left px-4 py-3 flex flex-col transition-colors ${
-                  speakerId === v.id ? 'bg-emerald-50' : 'hover:bg-slate-50'
-                }`}
-              >
-                <span className={`text-[13px] font-bold ${speakerId === v.id ? 'text-emerald-600' : 'text-slate-700'}`}>
-                  {v.name}
-                </span>
-                <span className="text-[11px] text-slate-400">{v.desc}</span>
-              </button>
-            ))}
-          </div>
-        </>
-      )}
+  // ===== キャラクター切り替えタブ =====
+  const voiceTabSelector = () => (
+    <div className="grid grid-cols-4 gap-1.5">
+      {VOICE_OPTIONS.map(v => (
+        <button
+          key={v.id}
+          onClick={() => handleVoiceChange(v.id)}
+          className={`px-1 py-1.5 rounded-[8px] text-center transition-all ${
+            speakerId === v.id
+              ? 'bg-emerald-500 text-white shadow-sm'
+              : 'bg-slate-200 text-slate-500 hover:bg-slate-300'
+          }`}
+        >
+          <span className="block text-[11px] font-bold leading-tight truncate">{v.name}</span>
+        </button>
+      ))}
     </div>
   );
 
@@ -416,14 +396,12 @@ export default function TTSPlayer({ minuteId, summaryText }: TTSPlayerProps) {
   if (status === 'not_generated') {
     return (
       <div className="space-y-2">
-        <div className="flex items-center justify-between">
-          {voiceSelector()}
-        </div>
         <button onClick={generateAudio}
           className="w-full bg-emerald-50 text-emerald-600 font-bold py-4 rounded-[14px] text-[15px] hover:bg-emerald-100 transition-all active:scale-[0.97] flex items-center justify-center gap-2">
           <Volume2 className="w-5 h-5" />
           音声を生成
         </button>
+        {voiceTabSelector()}
       </div>
     );
   }
@@ -435,12 +413,9 @@ export default function TTSPlayer({ minuteId, summaryText }: TTSPlayerProps) {
 
     return (
       <div className="w-full bg-amber-50 rounded-[14px] p-4 space-y-2">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-2 text-amber-600 font-bold text-[15px]">
-            <Loader2 className="w-5 h-5 animate-spin" />
-            音声生成中...
-          </div>
-          {voiceSelector(true)}
+        <div className="flex items-center gap-2 text-amber-600 font-bold text-[15px]">
+          <Loader2 className="w-5 h-5 animate-spin" />
+          音声生成中...
         </div>
         {genTotal > 0 && (
           <>
@@ -460,6 +435,7 @@ export default function TTSPlayer({ minuteId, summaryText }: TTSPlayerProps) {
             生成済み部分を再生 ({chunks.length}チャンク)
           </button>
         )}
+        {voiceTabSelector()}
       </div>
     );
   }
@@ -470,14 +446,12 @@ export default function TTSPlayer({ minuteId, summaryText }: TTSPlayerProps) {
         <div className="w-full bg-red-50 text-red-500 font-medium py-3 px-4 rounded-[14px] text-[13px] text-center">
           {errorMsg || 'エラーが発生しました'}
         </div>
-        <div className="flex items-center justify-between">
-          {voiceSelector()}
-        </div>
         <button onClick={generateAudio}
           className="w-full bg-slate-100 text-slate-600 font-bold py-3 rounded-[14px] text-[14px] hover:bg-slate-200 transition-all active:scale-[0.97] flex items-center justify-center gap-2">
           <RotateCcw className="w-4 h-4" />
           再試行
         </button>
+        {voiceTabSelector()}
       </div>
     );
   }
@@ -541,21 +515,21 @@ export default function TTSPlayer({ minuteId, summaryText }: TTSPlayerProps) {
         )}
       </div>
 
-      {/* 声選択 + 速度 */}
-      <div className="flex items-center justify-between">
-        {voiceSelector(true)}
-        <div className="flex items-center gap-1.5">
-          <span className="text-[12px] text-slate-400 mr-0.5">速度:</span>
-          {SPEED_OPTIONS.map((s) => (
-            <button key={s} onClick={() => setSpeed(s)}
-              className={`px-2.5 py-1 rounded-full text-[12px] font-bold transition-all ${
-                speed === s ? 'bg-emerald-500 text-white' : 'bg-slate-200 text-slate-500 hover:bg-slate-300'
-              }`}>
-              {s}x
-            </button>
-          ))}
-        </div>
+      {/* 速度 */}
+      <div className="flex items-center justify-center gap-1.5">
+        <span className="text-[12px] text-slate-400 mr-0.5">速度:</span>
+        {SPEED_OPTIONS.map((s) => (
+          <button key={s} onClick={() => setSpeed(s)}
+            className={`px-2.5 py-1 rounded-full text-[12px] font-bold transition-all ${
+              speed === s ? 'bg-emerald-500 text-white' : 'bg-slate-200 text-slate-500 hover:bg-slate-300'
+            }`}>
+            {s}x
+          </button>
+        ))}
       </div>
+
+      {/* キャラクター切り替え */}
+      {voiceTabSelector()}
     </div>
   );
 }
