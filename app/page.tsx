@@ -1,14 +1,14 @@
 'use client';
 
-import { useState, useEffect, useMemo } from 'react';
-import { Mic, LogOut, Home, List, Search, ChevronRight, FileText, X, User, Download, Save, Loader2, Trash2, BookOpen } from 'lucide-react';
+import { useState, useEffect, useMemo, useRef } from 'react';
+import { Mic, LogOut, Home, List, Search, ChevronRight, FileText, X, User, Download, Save, Loader2, Trash2, BookOpen, Play, Pause, Square } from 'lucide-react';
 import UserSelect, { UserData } from '@/components/UserSelect';
 import HistoryList from '@/components/HistoryList';
 import VoiceRecorder from '@/components/VoiceRecorder';
 import TermDictionary from '@/components/TermDictionary';
 import { supabase } from '@/lib/supabase';
 import { generateMinutesPdf } from '@/lib/generate-pdf';
-import TTSPlayer from '@/components/TTSPlayer';
+import TTSPlayer, { TTSPlayerHandle } from '@/components/TTSPlayer';
 
 type Tab = 'home' | 'history';
 type Mode = 'idle' | 'voice';
@@ -45,7 +45,39 @@ export default function Page() {
   const [isHomeSaving, setIsHomeSaving] = useState(false);
   const [isHomeDeleting, setIsHomeDeleting] = useState(false);
 
+  // バックグラウンド再生
+  const [isModalVisible, setIsModalVisible] = useState(true);
+  const [isAudioPlaying, setIsAudioPlaying] = useState(false);
+  const [bgProgress, setBgProgress] = useState(0);
+  const ttsRef = useRef<TTSPlayerHandle>(null);
+
   const handleUserSelect = (user: UserData) => setCurrentUser(user);
+
+  const closeHomeModal = () => {
+    if (isAudioPlaying && selectedHomeRecord) {
+      setIsModalVisible(false);
+    } else {
+      setSelectedHomeRecord(null);
+      setIsHomeEditing(false);
+      setIsModalVisible(true);
+    }
+  };
+
+  const openHomeRecord = (record: MinutesRecord) => {
+    if (selectedHomeRecord && selectedHomeRecord.id !== record.id && isAudioPlaying) {
+      ttsRef.current?.stop();
+    }
+    setSelectedHomeRecord(record);
+    setIsModalVisible(true);
+    setIsHomeEditing(false);
+  };
+
+  const stopBgPlayback = () => {
+    ttsRef.current?.stop();
+    setSelectedHomeRecord(null);
+    setIsModalVisible(true);
+    setIsAudioPlaying(false);
+  };
 
   const handleLogout = () => {
     setCurrentUser(null);
@@ -248,7 +280,7 @@ export default function Page() {
                         </div>
                         <p className="text-[13px] text-slate-500 line-clamp-1 leading-[1.6] mb-4">{record.summary}</p>
                         <button
-                          onClick={() => setSelectedHomeRecord(record)}
+                          onClick={() => openHomeRecord(record)}
                           className="text-[13px] font-semibold text-violet-600 flex items-center gap-1 hover:text-violet-800 transition-colors"
                         >
                           開く
@@ -292,12 +324,12 @@ export default function Page() {
 
       {/* ===== Detail Modal (Home) ===== */}
       {selectedHomeRecord && (
-        <div className="fixed inset-0 bg-black/50 z-[100] flex items-center justify-center p-5"
-          onClick={(e) => { if (e.target === e.currentTarget) { setSelectedHomeRecord(null); setIsHomeEditing(false); } }}>
+        <div className={`fixed inset-0 bg-black/50 z-[100] flex items-center justify-center p-5 transition-opacity ${isModalVisible ? '' : 'opacity-0 pointer-events-none'}`}
+          onClick={(e) => { if (e.target === e.currentTarget) closeHomeModal(); }}>
           <div className="bg-white rounded-[20px] w-full max-w-[440px] max-h-[80vh] overflow-y-auto shadow-xl">
             <div className="sticky top-0 bg-white rounded-t-[20px] px-7 pt-7 pb-5 border-b border-slate-100 flex items-center justify-between">
               <h2 className="text-[20px] font-bold text-slate-800">議事録詳細</h2>
-              <button onClick={() => { setSelectedHomeRecord(null); setIsHomeEditing(false); }}
+              <button onClick={closeHomeModal}
                 className="w-9 h-9 rounded-full bg-slate-100 flex items-center justify-center hover:bg-slate-200 transition-colors">
                 <X className="w-5 h-5 text-slate-500" />
               </button>
@@ -379,7 +411,14 @@ export default function Page() {
                       PDFで出力
                     </button>
                     {/* TTS Player */}
-                    <TTSPlayer minuteId={selectedHomeRecord.id} summaryText={selectedHomeRecord.summary} />
+                    <TTSPlayer
+                      ref={ttsRef}
+                      minuteId={selectedHomeRecord.id}
+                      summaryText={selectedHomeRecord.summary}
+                      clientName={selectedHomeRecord.client_name}
+                      onPlaybackChange={setIsAudioPlaying}
+                      onProgressChange={setBgProgress}
+                    />
 
                     <button onClick={() => {
                       setIsHomeEditing(true);
@@ -399,6 +438,40 @@ export default function Page() {
 
       {/* ===== Term Dictionary Modal ===== */}
       <TermDictionary userId={currentUser.id} isOpen={isDictOpen} onClose={() => setIsDictOpen(false)} />
+
+      {/* ===== フローティングミニプレイヤー（バックグラウンド再生中） ===== */}
+      {selectedHomeRecord && !isModalVisible && (
+        <div className="sticky bottom-[72px] z-40 mx-3 mb-1 bg-white rounded-[14px] border border-slate-200 shadow-lg overflow-hidden">
+          <div className="flex items-center gap-3 px-4 py-3">
+            <div className="flex-1 min-w-0 cursor-pointer" onClick={() => setIsModalVisible(true)}>
+              <div className="text-[12px] font-bold text-slate-700 truncate mb-1">
+                {selectedHomeRecord.client_name || '議事録'}
+              </div>
+              <div className="w-full h-[4px] bg-slate-200 rounded-full overflow-hidden">
+                <div className="h-full bg-emerald-500 rounded-full transition-all duration-300"
+                  style={{ width: `${bgProgress}%` }} />
+              </div>
+            </div>
+            <div className="flex items-center gap-2 flex-shrink-0">
+              {isAudioPlaying ? (
+                <button onClick={() => ttsRef.current?.pause()}
+                  className="w-9 h-9 rounded-full bg-amber-100 text-amber-600 flex items-center justify-center active:scale-95">
+                  <Pause className="w-4 h-4" />
+                </button>
+              ) : (
+                <button onClick={() => ttsRef.current?.play()}
+                  className="w-9 h-9 rounded-full bg-emerald-100 text-emerald-600 flex items-center justify-center active:scale-95">
+                  <Play className="w-4 h-4" />
+                </button>
+              )}
+              <button onClick={stopBgPlayback}
+                className="w-9 h-9 rounded-full bg-slate-200 text-slate-500 flex items-center justify-center active:scale-95">
+                <Square className="w-4 h-4" />
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* ===== BOTTOM NAVIGATION ===== */}
       <nav className="sticky bottom-0 z-50 bg-white border-t border-slate-200">
