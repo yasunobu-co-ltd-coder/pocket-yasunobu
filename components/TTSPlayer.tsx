@@ -21,8 +21,8 @@ interface TTSPlayerProps {
 // 選択可能な声（全てノーマル）
 const VOICE_OPTIONS = [
   { id: 2, name: '四国めたん', desc: '落ち着いた女性声' },
-  { id: 3, name: 'ずんだもん', desc: '親しみやすい声' },
   { id: 8, name: '春日部つむぎ', desc: '明るい女性声' },
+  { id: 3, name: 'ずんだもん', desc: '親しみやすい声' },
   { id: 47, name: 'ナースロボ＿タイプＴ', desc: '明瞭なロボ声' },
 ] as const;
 
@@ -372,20 +372,21 @@ export default function TTSPlayer({ minuteId, summaryText }: TTSPlayerProps) {
     }
   };
 
-  // ===== キャラクター切り替えタブ =====
+  // ===== キャラクター切り替えリスト =====
   const voiceTabSelector = () => (
-    <div className="grid grid-cols-4 gap-1.5">
+    <div className="flex flex-col gap-1.5">
       {VOICE_OPTIONS.map(v => (
         <button
           key={v.id}
           onClick={() => handleVoiceChange(v.id)}
-          className={`px-1 py-1.5 rounded-[8px] text-center transition-all ${
+          className={`w-full px-4 py-2.5 rounded-[10px] flex items-center justify-between transition-all ${
             speakerId === v.id
               ? 'bg-emerald-500 text-white shadow-sm'
               : 'bg-slate-200 text-slate-500 hover:bg-slate-300'
           }`}
         >
-          <span className="block text-[11px] font-bold leading-tight truncate">{v.name}</span>
+          <span className="text-[13px] font-bold">{v.name}</span>
+          <span className={`text-[11px] ${speakerId === v.id ? 'text-emerald-100' : 'text-slate-400'}`}>{v.desc}</span>
         </button>
       ))}
     </div>
