@@ -4,8 +4,9 @@ import { getSupabaseAdmin } from '@/lib/supabase';
 export const runtime = 'nodejs';
 
 /**
- * GET /api/tts/status?minute_id=xxx
+ * GET /api/tts/status?minute_id=xxx&speaker_id=3
  * 議事録の音声生成状態・進捗・チャンク情報を返す
+ * speaker_id 指定時はそのスピーカーのレコードを返す
  */
 export async function GET(req: NextRequest) {
   try {
@@ -14,13 +15,20 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ error: 'minute_id is required' }, { status: 400 });
     }
 
+    const speakerIdParam = req.nextUrl.searchParams.get('speaker_id');
     const supabase = getSupabaseAdmin();
 
-    // 最新の音声レコードを取得
-    const { data: audio, error: audioError } = await supabase
+    // 音声レコードを取得（speaker_id指定時はフィルタ）
+    let query = supabase
       .from('minutes_audio')
       .select('*')
-      .eq('minute_id', minuteId)
+      .eq('minute_id', minuteId);
+
+    if (speakerIdParam) {
+      query = query.eq('speaker_id', parseInt(speakerIdParam, 10));
+    }
+
+    const { data: audio, error: audioError } = await query
       .order('created_at', { ascending: false })
       .limit(1)
       .single();
@@ -49,6 +57,7 @@ export async function GET(req: NextRequest) {
       current_chunk_index: audio.current_chunk_index || 0,
       progress_text: audio.progress_text || '',
       error_message: audio.error_message || null,
+      speaker_id: audio.speaker_id ?? 3,
       chunks: chunks || [],
       created_at: audio.created_at,
       updated_at: audio.updated_at,

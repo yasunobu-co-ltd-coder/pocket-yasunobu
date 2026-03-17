@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect, useCallback } from 'react';
-import { Loader2, User, RefreshCw, Mic, X, Plus, Trash2, Lock, GripVertical, AlertTriangle } from 'lucide-react';
+import { Loader2, User, RefreshCw, Mic, X, Plus, Trash2, Lock, GripVertical, AlertTriangle, Info } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 import {
     DndContext,
@@ -137,6 +137,7 @@ export default function UserSelect({ onSelect }: UserSelectProps) {
     const [isAdding, setIsAdding] = useState(false);
     const [deleteModal, setDeleteModal] = useState<DeleteModalState | null>(null);
     const [isDragging, setIsDragging] = useState(false);
+    const [showCredits, setShowCredits] = useState(false);
 
     // Long-press: 250ms delay before drag starts
     const pointerSensor = useSensor(PointerSensor, {
@@ -267,7 +268,6 @@ export default function UserSelect({ onSelect }: UserSelectProps) {
     };
 
     const handleDragEnd = async (event: DragEndEvent) => {
-        // ドラッグ後にクリックイベントがバブルアップしてonSelectが誤発火するのを防止
         setTimeout(() => setIsDragging(false), 300);
 
         const { active, over } = event;
@@ -289,7 +289,6 @@ export default function UserSelect({ onSelect }: UserSelectProps) {
 
     const handleSafeSelect = (user: UserData) => {
         if (isDragging) return;
-        // PIN認証直後800ms以内のクリック/Enterはゴーストイベントとして無視
         if (pinVerifiedAt > 0 && Date.now() - pinVerifiedAt < 800) return;
         onSelect(user);
     };
@@ -446,6 +445,72 @@ export default function UserSelect({ onSelect }: UserSelectProps) {
                     </button>
                 )}
             </div>
+
+            {/* Credits button */}
+            <button
+                onClick={() => setShowCredits(true)}
+                className="mt-4 text-[11px] text-slate-300 hover:text-slate-500 transition-colors flex items-center justify-center gap-1"
+            >
+                <Info className="w-3 h-3" />
+                クレジット
+            </button>
+
+            {/* ===== Credits overlay ===== */}
+            {showCredits && (
+                <div
+                    className="fixed inset-0 bg-black/50 z-[100] flex items-center justify-center p-5"
+                    onClick={(e) => { if (e.target === e.currentTarget) setShowCredits(false); }}
+                >
+                    <div className="bg-white rounded-[20px] w-full max-w-[400px] max-h-[80vh] overflow-y-auto shadow-xl">
+                        <div className="px-7 pt-7 pb-4 border-b border-slate-100 flex items-center justify-between">
+                            <h2 className="text-[17px] font-bold text-slate-800">クレジット</h2>
+                            <button
+                                onClick={() => setShowCredits(false)}
+                                className="w-8 h-8 rounded-full bg-slate-100 flex items-center justify-center hover:bg-slate-200 transition-colors"
+                            >
+                                <X className="w-4 h-4 text-slate-500" />
+                            </button>
+                        </div>
+                        <div className="p-7 space-y-6">
+                            <div>
+                                <h3 className="text-[14px] font-bold text-slate-700 mb-3">音声読み上げ</h3>
+                                <p className="text-[12px] text-slate-500 mb-4">
+                                    本アプリの音声読み上げ機能は VOICEVOX を使用しています。
+                                </p>
+                                <div className="space-y-3">
+                                    {[
+                                        { name: '四国めたん', url: 'https://voicevox.hiroshiba.jp/' },
+                                        { name: 'ずんだもん', url: 'https://voicevox.hiroshiba.jp/' },
+                                        { name: '春日部つむぎ', url: 'https://tsukushinyoki10.wixsite.com/ktsumugiofficial/' },
+                                        { name: 'ナースロボ＿タイプＴ', url: 'https://voicevox.hiroshiba.jp/' },
+                                    ].map(v => (
+                                        <div key={v.name} className="flex items-center justify-between bg-slate-50 rounded-[10px] px-4 py-3">
+                                            <span className="text-[13px] font-bold text-slate-700">{v.name}</span>
+                                            <span className="text-[11px] text-slate-400">VOICEVOX</span>
+                                        </div>
+                                    ))}
+                                </div>
+                            </div>
+                            <div className="bg-violet-50 rounded-[12px] p-4">
+                                <p className="text-[12px] text-violet-600 leading-[1.7]">
+                                    VOICEVOX: ヒホ（ヒロシバ）
+                                    <br />
+                                    <a href="https://voicevox.hiroshiba.jp/" target="_blank" rel="noopener noreferrer"
+                                        className="underline hover:text-violet-800">https://voicevox.hiroshiba.jp/</a>
+                                </p>
+                            </div>
+                            <div>
+                                <h3 className="text-[14px] font-bold text-slate-700 mb-3">その他</h3>
+                                <div className="space-y-2 text-[12px] text-slate-500 leading-[1.7]">
+                                    <p>音声認識: OpenAI Whisper</p>
+                                    <p>議事録生成: OpenAI GPT-4o</p>
+                                    <p>データベース: Supabase</p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            )}
 
             {/* ===== Delete confirmation modal ===== */}
             {deleteModal && (

@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useRef, useEffect, useCallback } from 'react';
-import { Volume2, Play, Pause, Square, Loader2, RotateCcw } from 'lucide-react';
+import { Volume2, Play, Pause, Square, Loader2, RotateCcw, ChevronDown } from 'lucide-react';
 
 type TTSStatus = 'not_generated' | 'generating' | 'ready' | 'playing' | 'paused' | 'error';
 
@@ -17,6 +17,14 @@ interface TTSPlayerProps {
   minuteId: number | string;
   summaryText: string;
 }
+
+// 選択可能な声（全てノーマル）
+const VOICE_OPTIONS = [
+  { id: 2, name: '四国めたん', desc: '落ち着いた女性声' },
+  { id: 3, name: 'ずんだもん', desc: '親しみやすい声' },
+  { id: 8, name: '春日部つむぎ', desc: '明るい女性声' },
+  { id: 47, name: 'ナースロボ＿タイプＴ', desc: '明瞭なロボ声' },
+] as const;
 
 const SPEED_OPTIONS = [1, 1.25, 1.5, 2] as const;
 const STATUS_POLL_INTERVAL = 2000;
@@ -35,12 +43,22 @@ export default function TTSPlayer({ minuteId, summaryText }: TTSPlayerProps) {
     }
     return 1;
   });
+  const [speakerId, setSpeakerId] = useState<number>(() => {
+    if (typeof window !== 'undefined') {
+      const saved = localStorage.getItem('tts-speaker-id');
+      if (saved) {
+        const parsed = parseInt(saved, 10);
+        if (VOICE_OPTIONS.some(v => v.id === parsed)) return parsed;
+      }
+    }
+    return 3; // デフォルト: ずんだもん
+  });
+  const [showVoiceMenu, setShowVoiceMenu] = useState(false);
   const [errorMsg, setErrorMsg] = useState('');
   const [progress, setProgress] = useState(0);
 
   const [genTotal, setGenTotal] = useState(0);
   const [genCompleted, setGenCompleted] = useState(0);
-  // 生成完了フラグ（generating/processing 中かどうか）
   const [isFullyReady, setIsFullyReady] = useState(false);
 
   const audioRef = useRef<HTMLAudioElement | null>(null);
@@ -48,14 +66,36 @@ export default function TTSPlayer({ minuteId, summaryText }: TTSPlayerProps) {
   const pollTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const speedRef = useRef(speed);
   const chunksRef = useRef<AudioChunk[]>([]);
+  const speakerIdRef = useRef(speakerId);
 
-  useEffect(() => { checkStatus(); }, [minuteId]); // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => { checkStatus(speakerId); }, [minuteId]); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
     speedRef.current = speed;
     if (audioRef.current) audioRef.current.playbackRate = speed;
     localStorage.setItem('tts-speed', String(speed));
   }, [speed]);
+
+  useEffect(() => {
+    speakerIdRef.current = speakerId;
+    localStorage.setItem('tts-speaker-id', String(speakerId));
+  }, [speakerId]);
+
+  // 声が変わったら → 再生停止 → そのスピーカーの status を取得
+  const handleVoiceChange = (newId: number) => {
+    if (newId === speakerId) return;
+    // 再生中なら停止
+    if (audioRef.current) { audioRef.current.pause(); audioRef.current.currentTime = 0; audioRef.current = null; }
+    isPlayingRef.current = false;
+    stopPolling();
+    setSpeakerId(newId);
+    setChunks([]);
+    setProgress(0);
+    setCurrentChunkIndex(0);
+    setIsFullyReady(false);
+    // そのスピーカーの状態を取得（未生成なら自動生成）
+    checkStatus(newId, true);
+  };
 
   useEffect(() => {
     return () => {
@@ -65,25 +105,26 @@ export default function TTSPlayer({ minuteId, summaryText }: TTSPlayerProps) {
     };
   }, []);
 
-  // chunksRef を常に最新に保つ
   useEffect(() => { chunksRef.current = chunks; }, [chunks]);
 
   const stopPolling = () => {
     if (pollTimerRef.current) { clearInterval(pollTimerRef.current); pollTimerRef.current = null; }
   };
 
-  const startPolling = () => {
+  const startPolling = (spkId: number) => {
     stopPolling();
     pollTimerRef.current = setInterval(async () => {
       try {
-        const res = await fetch(`/api/tts/status?minute_id=${minuteId}`);
+        const res = await fetch(`/api/tts/status?minute_id=${minuteId}&speaker_id=${spkId}`);
         if (!res.ok) return;
         const data = await res.json();
+
+        // ポーリング中にユーザーが声を変えた場合は無視
+        if (spkId !== speakerIdRef.current) { stopPolling(); return; }
 
         setGenCompleted(data.completed_chunks || 0);
         setGenTotal(data.total_chunks || 0);
 
-        // チャンクリストを更新（生成中でも利用可能なチャンクを反映）
         if (data.chunks?.length > 0) {
           setChunks(data.chunks);
         }
@@ -94,7 +135,6 @@ export default function TTSPlayer({ minuteId, summaryText }: TTSPlayerProps) {
           setGenTotal(data.total_chunks || data.chunks?.length || 0);
           setGenCompleted(data.total_chunks || data.chunks?.length || 0);
           setIsFullyReady(true);
-          // 再生中でなければ ready に遷移
           if (!isPlayingRef.current) {
             setStatus('ready');
           }
@@ -105,16 +145,15 @@ export default function TTSPlayer({ minuteId, summaryText }: TTSPlayerProps) {
             setStatus('error');
           }
         }
-        // generating/processing → ポーリング継続
       } catch {
         // ネットワークエラーは無視
       }
     }, STATUS_POLL_INTERVAL);
   };
 
-  const checkStatus = async () => {
+  const checkStatus = async (spkId: number, autoGenerate = false) => {
     try {
-      const res = await fetch(`/api/tts/status?minute_id=${minuteId}`);
+      const res = await fetch(`/api/tts/status?minute_id=${minuteId}&speaker_id=${spkId}`);
       if (!res.ok) { setStatus('not_generated'); return; }
       const data = await res.json();
 
@@ -132,12 +171,45 @@ export default function TTSPlayer({ minuteId, summaryText }: TTSPlayerProps) {
           setChunks(data.chunks);
         }
         setStatus('generating');
-        startPolling();
+        startPolling(spkId);
       } else if (data.status === 'failed') {
         setErrorMsg(data.error_message || '音声生成に失敗しました');
         setStatus('error');
+      } else if (autoGenerate && summaryText?.trim()) {
+        // 声切替先が未生成 → そのスピーカーだけ自動生成
+        generateSingleSpeaker(spkId);
       } else {
         setStatus('not_generated');
+      }
+    } catch {
+      setStatus('not_generated');
+    }
+  };
+
+  // 特定スピーカーだけジョブ作成（声切替時の遅延生成用）
+  const generateSingleSpeaker = async (spkId: number) => {
+    setStatus('generating');
+    setGenCompleted(0);
+    setGenTotal(0);
+    setIsFullyReady(false);
+    setChunks([]);
+    try {
+      const res = await fetch('/api/tts/generate', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ minute_id: minuteId, speaker_id: spkId }),
+      });
+      if (!res.ok) {
+        setStatus('not_generated');
+        return;
+      }
+      const data = await res.json();
+      setGenTotal(data.total_chunks || 0);
+      setGenCompleted(data.completed_chunks || 0);
+      if (data.status === 'ready') {
+        await checkStatus(spkId);
+      } else {
+        startPolling(spkId);
       }
     } catch {
       setStatus('not_generated');
@@ -159,10 +231,11 @@ export default function TTSPlayer({ minuteId, summaryText }: TTSPlayerProps) {
     setChunks([]);
 
     try {
+      // 4キャラ分のジョブを一括作成
       const res = await fetch('/api/tts/generate', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ minute_id: minuteId }),
+        body: JSON.stringify({ minute_id: minuteId, speaker_id: speakerId }),
       });
 
       if (!res.ok) {
@@ -177,9 +250,9 @@ export default function TTSPlayer({ minuteId, summaryText }: TTSPlayerProps) {
       setGenCompleted(data.completed_chunks || 0);
 
       if (data.status === 'ready') {
-        await checkStatus();
+        await checkStatus(speakerId);
       } else {
-        startPolling();
+        startPolling(speakerId);
       }
     } catch (e: unknown) {
       const msg = e instanceof Error ? e.message : '音声生成に失敗しました';
@@ -194,9 +267,7 @@ export default function TTSPlayer({ minuteId, summaryText }: TTSPlayerProps) {
     const currentChunks = chunksRef.current;
 
     if (index >= currentChunks.length) {
-      // 生成がまだ終わってないなら少し待ってリトライ
       if (!isPlayingRef.current) return;
-      // 全チャンク再生完了
       isPlayingRef.current = false;
       setStatus('ready');
       setCurrentChunkIndex(0);
@@ -225,13 +296,11 @@ export default function TTSPlayer({ minuteId, summaryText }: TTSPlayerProps) {
 
     audio.onended = () => {
       if (isPlayingRef.current) {
-        // 次のチャンクへ（chunksRef.current で最新リストを参照）
         const latestChunks = chunksRef.current;
         const nextIndex = index + 1;
         if (nextIndex < latestChunks.length) {
           playChunk(nextIndex);
         } else {
-          // 全チャンク再生完了
           isPlayingRef.current = false;
           setStatus('ready');
           setCurrentChunkIndex(0);
@@ -288,7 +357,6 @@ export default function TTSPlayer({ minuteId, summaryText }: TTSPlayerProps) {
     const currentChunks = chunksRef.current;
     if (currentChunks.length === 0) return;
 
-    // パーセントからチャンクインデックスを算出
     const targetChunk = Math.min(
       Math.floor((val / 100) * currentChunks.length),
       currentChunks.length - 1
@@ -298,7 +366,6 @@ export default function TTSPlayer({ minuteId, summaryText }: TTSPlayerProps) {
     setCurrentChunkIndex(targetChunk);
 
     if (status === 'playing' || status === 'paused') {
-      // 再生中 or 一時停止中 → そのチャンクから再生再開
       if (audioRef.current) { audioRef.current.pause(); audioRef.current = null; }
       isPlayingRef.current = true;
       setStatus('playing');
@@ -306,15 +373,58 @@ export default function TTSPlayer({ minuteId, summaryText }: TTSPlayerProps) {
     }
   };
 
+  const selectedVoice = VOICE_OPTIONS.find(v => v.id === speakerId) || VOICE_OPTIONS[1];
+
+  // ===== 声選択ドロップダウン =====
+  const voiceSelector = (compact = false) => (
+    <div className="relative">
+      <button
+        onClick={() => setShowVoiceMenu(!showVoiceMenu)}
+        className={`flex items-center gap-2 rounded-[10px] border border-slate-200 bg-white hover:bg-slate-50 transition-all ${
+          compact ? 'px-3 py-1.5 text-[12px]' : 'px-4 py-2.5 text-[13px]'
+        }`}
+      >
+        <span className="font-bold text-slate-700">{selectedVoice.name}</span>
+        <ChevronDown className={`w-3.5 h-3.5 text-slate-400 transition-transform ${showVoiceMenu ? 'rotate-180' : ''}`} />
+      </button>
+      {showVoiceMenu && (
+        <>
+          <div className="fixed inset-0 z-[60]" onClick={() => setShowVoiceMenu(false)} />
+          <div className="absolute bottom-full mb-1 left-0 w-[220px] bg-white rounded-[12px] border border-slate-200 shadow-lg z-[61] overflow-hidden">
+            {VOICE_OPTIONS.map(v => (
+              <button
+                key={v.id}
+                onClick={() => { handleVoiceChange(v.id); setShowVoiceMenu(false); }}
+                className={`w-full text-left px-4 py-3 flex flex-col transition-colors ${
+                  speakerId === v.id ? 'bg-emerald-50' : 'hover:bg-slate-50'
+                }`}
+              >
+                <span className={`text-[13px] font-bold ${speakerId === v.id ? 'text-emerald-600' : 'text-slate-700'}`}>
+                  {v.name}
+                </span>
+                <span className="text-[11px] text-slate-400">{v.desc}</span>
+              </button>
+            ))}
+          </div>
+        </>
+      )}
+    </div>
+  );
+
   // ===== レンダリング =====
 
   if (status === 'not_generated') {
     return (
-      <button onClick={generateAudio}
-        className="w-full bg-emerald-50 text-emerald-600 font-bold py-4 rounded-[14px] text-[15px] hover:bg-emerald-100 transition-all active:scale-[0.97] flex items-center justify-center gap-2">
-        <Volume2 className="w-5 h-5" />
-        音声を生成
-      </button>
+      <div className="space-y-2">
+        <div className="flex items-center justify-between">
+          {voiceSelector()}
+        </div>
+        <button onClick={generateAudio}
+          className="w-full bg-emerald-50 text-emerald-600 font-bold py-4 rounded-[14px] text-[15px] hover:bg-emerald-100 transition-all active:scale-[0.97] flex items-center justify-center gap-2">
+          <Volume2 className="w-5 h-5" />
+          音声を生成
+        </button>
+      </div>
     );
   }
 
@@ -325,9 +435,12 @@ export default function TTSPlayer({ minuteId, summaryText }: TTSPlayerProps) {
 
     return (
       <div className="w-full bg-amber-50 rounded-[14px] p-4 space-y-2">
-        <div className="flex items-center justify-center gap-2 text-amber-600 font-bold text-[15px]">
-          <Loader2 className="w-5 h-5 animate-spin" />
-          音声生成中...
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-2 text-amber-600 font-bold text-[15px]">
+            <Loader2 className="w-5 h-5 animate-spin" />
+            音声生成中...
+          </div>
+          {voiceSelector(true)}
         </div>
         {genTotal > 0 && (
           <>
@@ -356,6 +469,9 @@ export default function TTSPlayer({ minuteId, summaryText }: TTSPlayerProps) {
       <div className="space-y-2">
         <div className="w-full bg-red-50 text-red-500 font-medium py-3 px-4 rounded-[14px] text-[13px] text-center">
           {errorMsg || 'エラーが発生しました'}
+        </div>
+        <div className="flex items-center justify-between">
+          {voiceSelector()}
         </div>
         <button onClick={generateAudio}
           className="w-full bg-slate-100 text-slate-600 font-bold py-3 rounded-[14px] text-[14px] hover:bg-slate-200 transition-all active:scale-[0.97] flex items-center justify-center gap-2">
@@ -425,16 +541,20 @@ export default function TTSPlayer({ minuteId, summaryText }: TTSPlayerProps) {
         )}
       </div>
 
-      <div className="flex items-center justify-center gap-2">
-        <span className="text-[12px] text-slate-400 mr-1">速度:</span>
-        {SPEED_OPTIONS.map((s) => (
-          <button key={s} onClick={() => setSpeed(s)}
-            className={`px-3 py-1 rounded-full text-[12px] font-bold transition-all ${
-              speed === s ? 'bg-emerald-500 text-white' : 'bg-slate-200 text-slate-500 hover:bg-slate-300'
-            }`}>
-            {s}x
-          </button>
-        ))}
+      {/* 声選択 + 速度 */}
+      <div className="flex items-center justify-between">
+        {voiceSelector(true)}
+        <div className="flex items-center gap-1.5">
+          <span className="text-[12px] text-slate-400 mr-0.5">速度:</span>
+          {SPEED_OPTIONS.map((s) => (
+            <button key={s} onClick={() => setSpeed(s)}
+              className={`px-2.5 py-1 rounded-full text-[12px] font-bold transition-all ${
+                speed === s ? 'bg-emerald-500 text-white' : 'bg-slate-200 text-slate-500 hover:bg-slate-300'
+              }`}>
+              {s}x
+            </button>
+          ))}
+        </div>
       </div>
     </div>
   );
