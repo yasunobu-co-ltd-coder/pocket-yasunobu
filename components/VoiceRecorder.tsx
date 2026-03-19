@@ -532,6 +532,11 @@ export default function VoiceRecorder({ userId, userName, onSaved, onCancel }: V
     // pocket-yasunobu テーブルに保存
     const saveMinutes = async () => {
         if (!result) return;
+        const meetingName = (customer || result.customer || '').trim();
+        if (!meetingName) {
+            alert('会議名を入力してください');
+            return;
+        }
 
         try {
             let formattedMemo = result.summary;
@@ -549,7 +554,7 @@ export default function VoiceRecorder({ userId, userName, onSaved, onCancel }: V
                 .from('pocket-yasunobu')
                 .insert({
                     user_id: userId,
-                    client_name: customer || result.customer || '名称なし',
+                    client_name: meetingName,
                     transcript: editableTranscript,
                     summary: formattedMemo,
                     decisions: result.decisions || [],
