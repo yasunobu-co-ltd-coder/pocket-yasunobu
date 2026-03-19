@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect, useMemo } from 'react';
-import { Loader2, FileText, X, Save, User, Search, Trash2, Download } from 'lucide-react';
+import { Loader2, FileText, X, Save, User, Search, Trash2, Download, Plus, ArrowRightLeft } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 import { generateMinutesPdf } from '@/lib/generate-pdf';
 import TTSPlayer from './TTSPlayer';
@@ -44,6 +44,10 @@ export default function HistoryList({ userId, userName, refreshTrigger, initialS
     const [editSummary, setEditSummary] = useState('');
     const [isSaving, setIsSaving] = useState(false);
     const [isDeleting, setIsDeleting] = useState(false);
+
+    // 一括置換
+    const [showReplace, setShowReplace] = useState(false);
+    const [replaceRules, setReplaceRules] = useState<{ from: string; to: string }[]>([{ from: '', to: '' }]);
 
     useEffect(() => {
         const fetchRecords = async () => {
@@ -138,10 +142,43 @@ export default function HistoryList({ userId, userName, refreshTrigger, initialS
         setIsEditing(true);
         setEditClientName(record.client_name || '');
         setEditSummary(record.summary || '');
+        setShowReplace(false);
+        setReplaceRules([{ from: '', to: '' }]);
     };
 
     const cancelEdit = () => {
         setIsEditing(false);
+        setShowReplace(false);
+    };
+
+    const addReplaceRule = () => {
+        setReplaceRules([...replaceRules, { from: '', to: '' }]);
+    };
+
+    const removeReplaceRule = (index: number) => {
+        setReplaceRules(replaceRules.filter((_, i) => i !== index));
+    };
+
+    const updateReplaceRule = (index: number, field: 'from' | 'to', value: string) => {
+        setReplaceRules(replaceRules.map((r, i) => i === index ? { ...r, [field]: value } : r));
+    };
+
+    const applyReplaceRules = () => {
+        const validRules = replaceRules.filter(r => r.from.trim());
+        if (validRules.length === 0) return;
+        let text = editSummary;
+        let totalCount = 0;
+        for (const rule of validRules) {
+            const count = text.split(rule.from).length - 1;
+            totalCount += count;
+            text = text.split(rule.from).join(rule.to);
+        }
+        if (totalCount === 0) {
+            alert('該当する単語が見つかりませんでした');
+            return;
+        }
+        setEditSummary(text);
+        alert(`${totalCount}箇所を置換しました`);
     };
 
     const saveEdit = async () => {
@@ -306,6 +343,57 @@ export default function HistoryList({ userId, userName, refreshTrigger, initialS
                                         <textarea id="edit-summary" name="summary" value={editSummary} onChange={(e) => setEditSummary(e.target.value)} rows={8}
                                             className="w-full bg-slate-50 border border-slate-200 rounded-[12px] px-5 py-4 text-[15px] text-slate-700 leading-[1.7] focus:border-violet-400 focus:bg-white focus:shadow-[0_0_0_4px_rgba(124,58,237,0.1)] outline-none resize-none transition-all" />
                                     </div>
+
+                                    {/* 一括置換 */}
+                                    <div>
+                                        <button onClick={() => setShowReplace(!showReplace)}
+                                            className="flex items-center gap-2 text-[13px] font-bold text-amber-600 hover:text-amber-700 transition-colors">
+                                            <ArrowRightLeft className="w-4 h-4" />
+                                            一括置換 {showReplace ? '▲' : '▼'}
+                                        </button>
+                                        {showReplace && (
+                                            <div className="mt-3 bg-amber-50 rounded-[12px] p-4 space-y-3">
+                                                <p className="text-[12px] text-amber-600">指定した単語を一括で置き換えます</p>
+                                                {replaceRules.map((rule, i) => (
+                                                    <div key={i} className="flex items-center gap-2">
+                                                        <input
+                                                            type="text"
+                                                            value={rule.from}
+                                                            onChange={(e) => updateReplaceRule(i, 'from', e.target.value)}
+                                                            placeholder="置換前"
+                                                            className="flex-1 bg-white border border-amber-200 rounded-[8px] px-3 py-2 text-[13px] text-slate-700 focus:border-amber-400 outline-none"
+                                                        />
+                                                        <span className="text-amber-400 font-bold text-[13px]">→</span>
+                                                        <input
+                                                            type="text"
+                                                            value={rule.to}
+                                                            onChange={(e) => updateReplaceRule(i, 'to', e.target.value)}
+                                                            placeholder="置換後"
+                                                            className="flex-1 bg-white border border-amber-200 rounded-[8px] px-3 py-2 text-[13px] text-slate-700 focus:border-amber-400 outline-none"
+                                                        />
+                                                        {replaceRules.length > 1 && (
+                                                            <button onClick={() => removeReplaceRule(i)}
+                                                                className="w-7 h-7 rounded-full hover:bg-red-100 flex items-center justify-center transition-colors">
+                                                                <Trash2 className="w-3.5 h-3.5 text-slate-400 hover:text-red-500" />
+                                                            </button>
+                                                        )}
+                                                    </div>
+                                                ))}
+                                                <div className="flex gap-2">
+                                                    <button onClick={addReplaceRule}
+                                                        className="flex-1 bg-white border border-amber-200 text-amber-600 font-bold py-2 rounded-[8px] text-[12px] hover:bg-amber-100 transition-colors flex items-center justify-center gap-1">
+                                                        <Plus className="w-3.5 h-3.5" />
+                                                        ルール追加
+                                                    </button>
+                                                    <button onClick={applyReplaceRules}
+                                                        className="flex-1 bg-amber-500 text-white font-bold py-2 rounded-[8px] text-[12px] hover:bg-amber-600 transition-colors active:scale-[0.97]">
+                                                        置換を適用
+                                                    </button>
+                                                </div>
+                                            </div>
+                                        )}
+                                    </div>
+
                                     <div className="flex gap-3 pt-2">
                                         <button onClick={cancelEdit}
                                             className="flex-1 bg-slate-100 text-slate-600 font-bold py-4 rounded-[14px] text-[15px] transition-colors hover:bg-slate-200">
