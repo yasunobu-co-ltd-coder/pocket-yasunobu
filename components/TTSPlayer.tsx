@@ -74,6 +74,7 @@ const TTSPlayer = forwardRef<TTSPlayerHandle, TTSPlayerProps>(function TTSPlayer
 
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const isPlayingRef = useRef(false);
+  const internalPauseRef = useRef(false); // 内部操作によるpauseかどうか
   const pollTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const speedRef = useRef(speed);
   const chunksRef = useRef<AudioChunk[]>([]);
@@ -136,7 +137,9 @@ const TTSPlayer = forwardRef<TTSPlayerHandle, TTSPlayerProps>(function TTSPlayer
     if (newId === speakerId) return;
     // 即座にローディング状態にして前のUI表示を消す
     setStatus('loading');
+    internalPauseRef.current = true;
     if (audioRef.current) { audioRef.current.pause(); audioRef.current.currentTime = 0; audioRef.current = null; }
+    internalPauseRef.current = false;
     isPlayingRef.current = false;
     updatePlayState(false);
     stopPolling();
@@ -328,7 +331,9 @@ const TTSPlayer = forwardRef<TTSPlayerHandle, TTSPlayerProps>(function TTSPlayer
       return;
     }
 
+    internalPauseRef.current = true;
     if (audioRef.current) { audioRef.current.pause(); audioRef.current = null; }
+    internalPauseRef.current = false;
 
     const chunk = currentChunks[index];
     const audio = new Audio(chunk.audio_url);
@@ -367,8 +372,9 @@ const TTSPlayer = forwardRef<TTSPlayerHandle, TTSPlayerProps>(function TTSPlayer
     };
 
     // 他アプリに音声フォーカスを奪われた時（音楽再生等）
+    // internalPauseRef: handlePause/handleSeek/handleVoiceChange等の内部操作を区別
     audio.onpause = () => {
-      if (!endedNaturally && isPlayingRef.current && audioRef.current === audio) {
+      if (!endedNaturally && !internalPauseRef.current && isPlayingRef.current && audioRef.current === audio) {
         isPlayingRef.current = false;
         setStatus('paused');
         updatePlayState(false);
@@ -409,14 +415,18 @@ const TTSPlayer = forwardRef<TTSPlayerHandle, TTSPlayerProps>(function TTSPlayer
   };
 
   const handlePause = () => {
+    internalPauseRef.current = true;
     if (audioRef.current) audioRef.current.pause();
+    internalPauseRef.current = false;
     isPlayingRef.current = false;
     setStatus('paused');
     updatePlayState(false);
   };
 
   const handleStop = () => {
+    internalPauseRef.current = true;
     if (audioRef.current) { audioRef.current.pause(); audioRef.current.currentTime = 0; audioRef.current = null; }
+    internalPauseRef.current = false;
     isPlayingRef.current = false;
     setStatus(isFullyReady ? 'ready' : 'generating');
     setCurrentChunkIndex(0);
@@ -438,7 +448,9 @@ const TTSPlayer = forwardRef<TTSPlayerHandle, TTSPlayerProps>(function TTSPlayer
     setCurrentChunkIndex(targetChunk);
 
     if (status === 'playing' || status === 'paused') {
+      internalPauseRef.current = true;
       if (audioRef.current) { audioRef.current.pause(); audioRef.current = null; }
+      internalPauseRef.current = false;
       isPlayingRef.current = true;
       setStatus('playing');
       updatePlayState(true);
