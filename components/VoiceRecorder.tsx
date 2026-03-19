@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useRef, useEffect } from 'react';
-import { Mic, Square, Save, Loader2, Check, Upload, FileAudio, ArrowLeft, ChevronRight, Download, Pencil } from 'lucide-react';
+import { Mic, Square, Save, Loader2, Check, Upload, FileAudio, ArrowLeft, ChevronRight, Download, Pencil, ArrowRightLeft, Plus, Trash2 } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 import { splitAudioIntoChunks, transcribeChunksParallel } from '@/lib/audio-chunker';
 import { generateMinutesPdf } from '@/lib/generate-pdf';
@@ -113,6 +113,10 @@ export default function VoiceRecorder({ userId, userName, onSaved, onCancel }: V
     const [editDecisions, setEditDecisions] = useState('');
     const [editTodos, setEditTodos] = useState('');
     const [editNextSchedule, setEditNextSchedule] = useState('');
+
+    // 一括置換
+    const [showReplace, setShowReplace] = useState(false);
+    const [replaceRules, setReplaceRules] = useState<{ from: string; to: string }[]>([{ from: '', to: '' }]);
 
     useEffect(() => {
         return () => {
@@ -491,6 +495,44 @@ export default function VoiceRecorder({ userId, userName, onSaved, onCancel }: V
         }
     };
 
+    const addReplaceRule = () => {
+        setReplaceRules([...replaceRules, { from: '', to: '' }]);
+    };
+    const removeReplaceRule = (index: number) => {
+        setReplaceRules(replaceRules.filter((_, i) => i !== index));
+    };
+    const updateReplaceRule = (index: number, field: 'from' | 'to', value: string) => {
+        setReplaceRules(replaceRules.map((r, i) => i === index ? { ...r, [field]: value } : r));
+    };
+    const applyReplaceRules = () => {
+        const validRules = replaceRules.filter(r => r.from.trim());
+        if (validRules.length === 0) return;
+        let summary = editSummary;
+        let decisions = editDecisions;
+        let todos = editTodos;
+        let schedule = editNextSchedule;
+        let totalCount = 0;
+        for (const rule of validRules) {
+            totalCount += summary.split(rule.from).length - 1;
+            totalCount += decisions.split(rule.from).length - 1;
+            totalCount += todos.split(rule.from).length - 1;
+            totalCount += schedule.split(rule.from).length - 1;
+            summary = summary.split(rule.from).join(rule.to);
+            decisions = decisions.split(rule.from).join(rule.to);
+            todos = todos.split(rule.from).join(rule.to);
+            schedule = schedule.split(rule.from).join(rule.to);
+        }
+        if (totalCount === 0) {
+            alert('該当する単語が見つかりませんでした');
+            return;
+        }
+        setEditSummary(summary);
+        setEditDecisions(decisions);
+        setEditTodos(todos);
+        setEditNextSchedule(schedule);
+        alert(`${totalCount}箇所を置換しました`);
+    };
+
     // 編集モード開始
     const startEditingResult = () => {
         if (!result) return;
@@ -499,6 +541,8 @@ export default function VoiceRecorder({ userId, userName, onSaved, onCancel }: V
         setEditTodos((result.todos || []).join('\n'));
         setEditNextSchedule(result.nextSchedule || '');
         setIsEditingResult(true);
+        setShowReplace(false);
+        setReplaceRules([{ from: '', to: '' }]);
     };
 
     // 編集完了
@@ -699,6 +743,48 @@ export default function VoiceRecorder({ userId, userName, onSaved, onCancel }: V
                                     <input id="edit-next-schedule" name="edit-next-schedule" type="text" value={editNextSchedule} onChange={(e) => setEditNextSchedule(e.target.value)}
                                         className="w-full bg-slate-50 border border-slate-200 rounded-[12px] px-4 py-3.5 text-[14px] text-slate-700 focus:border-violet-400 focus:bg-white focus:shadow-[0_0_0_4px_rgba(124,58,237,0.1)] outline-none transition-all" />
                                 </div>
+                                {/* 一括置換 */}
+                                <div>
+                                    <button onClick={() => setShowReplace(!showReplace)}
+                                        className="flex items-center gap-2 text-[13px] font-bold text-amber-600 hover:text-amber-700 transition-colors">
+                                        <ArrowRightLeft className="w-4 h-4" />
+                                        一括置換 {showReplace ? '▲' : '▼'}
+                                    </button>
+                                    {showReplace && (
+                                        <div className="mt-3 bg-amber-50 rounded-[12px] p-4 space-y-3">
+                                            <p className="text-[12px] text-amber-600">要約・決定事項・TODO・次回予定を一括で置き換えます</p>
+                                            {replaceRules.map((rule, i) => (
+                                                <div key={i} className="flex items-center gap-2">
+                                                    <input type="text" value={rule.from} onChange={(e) => updateReplaceRule(i, 'from', e.target.value)}
+                                                        placeholder="置換前"
+                                                        className="flex-1 bg-white border border-amber-200 rounded-[8px] px-3 py-2 text-[13px] text-slate-700 focus:border-amber-400 outline-none" />
+                                                    <span className="text-amber-400 font-bold text-[13px]">→</span>
+                                                    <input type="text" value={rule.to} onChange={(e) => updateReplaceRule(i, 'to', e.target.value)}
+                                                        placeholder="置換後"
+                                                        className="flex-1 bg-white border border-amber-200 rounded-[8px] px-3 py-2 text-[13px] text-slate-700 focus:border-amber-400 outline-none" />
+                                                    {replaceRules.length > 1 && (
+                                                        <button onClick={() => removeReplaceRule(i)}
+                                                            className="w-7 h-7 rounded-full hover:bg-red-100 flex items-center justify-center transition-colors">
+                                                            <Trash2 className="w-3.5 h-3.5 text-slate-400 hover:text-red-500" />
+                                                        </button>
+                                                    )}
+                                                </div>
+                                            ))}
+                                            <div className="flex gap-2">
+                                                <button onClick={addReplaceRule}
+                                                    className="flex-1 bg-white border border-amber-200 text-amber-600 font-bold py-2 rounded-[8px] text-[12px] hover:bg-amber-100 transition-colors flex items-center justify-center gap-1">
+                                                    <Plus className="w-3.5 h-3.5" />
+                                                    ルール追加
+                                                </button>
+                                                <button onClick={applyReplaceRules}
+                                                    className="flex-1 bg-amber-500 text-white font-bold py-2 rounded-[8px] text-[12px] hover:bg-amber-600 transition-colors active:scale-[0.97]">
+                                                    置換を適用
+                                                </button>
+                                            </div>
+                                        </div>
+                                    )}
+                                </div>
+
                                 <button onClick={finishEditingResult}
                                     className="w-full bg-emerald-500 text-white font-bold py-4 rounded-[14px] text-[15px] hover:bg-emerald-600 transition-all active:scale-[0.97] flex items-center justify-center gap-2">
                                     <Check className="w-5 h-5" />
