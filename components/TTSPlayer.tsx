@@ -347,7 +347,10 @@ const TTSPlayer = forwardRef<TTSPlayerHandle, TTSPlayerProps>(function TTSPlayer
       }
     };
 
+    let endedNaturally = false;
+
     audio.onended = () => {
+      endedNaturally = true;
       if (isPlayingRef.current) {
         const latestChunks = chunksRef.current;
         const nextIndex = index + 1;
@@ -360,6 +363,15 @@ const TTSPlayer = forwardRef<TTSPlayerHandle, TTSPlayerProps>(function TTSPlayer
           updateProgress(0);
           updatePlayState(false);
         }
+      }
+    };
+
+    // 他アプリに音声フォーカスを奪われた時（音楽再生等）
+    audio.onpause = () => {
+      if (!endedNaturally && isPlayingRef.current && audioRef.current === audio) {
+        isPlayingRef.current = false;
+        setStatus('paused');
+        updatePlayState(false);
       }
     };
 
