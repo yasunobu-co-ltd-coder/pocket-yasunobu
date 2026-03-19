@@ -754,20 +754,26 @@ export default function VoiceRecorder({ userId, userName, onSaved, onCancel }: V
                                         <div className="mt-3 bg-amber-50 rounded-[12px] p-4 space-y-3">
                                             <p className="text-[12px] text-amber-600">要約・決定事項・TODO・次回予定を一括で置き換えます</p>
                                             {replaceRules.map((rule, i) => (
-                                                <div key={i} className="flex items-center gap-2">
-                                                    <input type="text" value={rule.from} onChange={(e) => updateReplaceRule(i, 'from', e.target.value)}
-                                                        placeholder="置換前"
-                                                        className="flex-1 bg-white border border-amber-200 rounded-[8px] px-3 py-2 text-[13px] text-slate-700 focus:border-amber-400 outline-none" />
-                                                    <span className="text-amber-400 font-bold text-[13px]">→</span>
-                                                    <input type="text" value={rule.to} onChange={(e) => updateReplaceRule(i, 'to', e.target.value)}
-                                                        placeholder="置換後"
-                                                        className="flex-1 bg-white border border-amber-200 rounded-[8px] px-3 py-2 text-[13px] text-slate-700 focus:border-amber-400 outline-none" />
-                                                    {replaceRules.length > 1 && (
-                                                        <button onClick={() => removeReplaceRule(i)}
-                                                            className="w-7 h-7 rounded-full hover:bg-red-100 flex items-center justify-center transition-colors">
-                                                            <Trash2 className="w-3.5 h-3.5 text-slate-400 hover:text-red-500" />
-                                                        </button>
-                                                    )}
+                                                <div key={i} className="bg-white border border-amber-200 rounded-[10px] p-3 space-y-2">
+                                                    <div className="flex items-center gap-2">
+                                                        <span className="text-[11px] font-bold text-amber-500 w-8 flex-shrink-0">前</span>
+                                                        <input type="text" value={rule.from} onChange={(e) => updateReplaceRule(i, 'from', e.target.value)}
+                                                            placeholder="置換前の単語"
+                                                            className="flex-1 bg-amber-50 border border-amber-100 rounded-[6px] px-3 py-1.5 text-[13px] text-slate-700 focus:border-amber-400 outline-none" />
+                                                        {replaceRules.length > 1 && (
+                                                            <button onClick={() => removeReplaceRule(i)}
+                                                                className="w-7 h-7 rounded-full hover:bg-red-100 flex items-center justify-center transition-colors flex-shrink-0">
+                                                                <Trash2 className="w-3.5 h-3.5 text-slate-400 hover:text-red-500" />
+                                                            </button>
+                                                        )}
+                                                    </div>
+                                                    <div className="flex items-center gap-2">
+                                                        <span className="text-[11px] font-bold text-emerald-500 w-8 flex-shrink-0">後</span>
+                                                        <input type="text" value={rule.to} onChange={(e) => updateReplaceRule(i, 'to', e.target.value)}
+                                                            placeholder="置換後の単語"
+                                                            className="flex-1 bg-emerald-50 border border-emerald-100 rounded-[6px] px-3 py-1.5 text-[13px] text-slate-700 focus:border-emerald-400 outline-none" />
+                                                        {replaceRules.length > 1 && <div className="w-7 flex-shrink-0" />}
+                                                    </div>
                                                 </div>
                                             ))}
                                             <div className="flex gap-2">
