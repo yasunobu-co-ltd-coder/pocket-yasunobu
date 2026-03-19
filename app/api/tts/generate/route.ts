@@ -14,7 +14,7 @@ const QUEUE_THRESHOLD = 4;
 
 /**
  * POST /api/tts/generate
- * キューが空いていれば4キャラ一括、混んでいれば選択中の1キャラだけ作成
+ * 編集時は変更チャンクのみ再生成（未変更チャンクの音声はコピーして流用）
  */
 export async function POST(req: NextRequest) {
   try {
@@ -52,8 +52,8 @@ export async function POST(req: NextRequest) {
 
     // 2. テキストハッシュ・チャンク分割
     const textHash = await generateTextHash(summaryText);
-    const chunks = splitTextIntoChunks(summaryText);
-    const totalChunks = chunks.length;
+    const newChunks = splitTextIntoChunks(summaryText);
+    const totalChunks = newChunks.length;
 
     // 3. キュー深さチェック: VPS が詰まっていないか確認
     const { count: queueDepth } = await supabase
@@ -62,7 +62,6 @@ export async function POST(req: NextRequest) {
       .in('status', ['generating', 'processing']);
 
     const isBusy = (queueDepth ?? 0) >= QUEUE_THRESHOLD;
-    // 混んでいたら primary のみ、空いていたら全キャラ
     const speakersToCreate = isBusy ? [primarySpeaker] : ALL_SPEAKER_IDS;
 
     if (isBusy) {
@@ -73,80 +72,139 @@ export async function POST(req: NextRequest) {
     let primaryResult: { audio_id: string; status: string; total_chunks: number; completed_chunks: number } | null = null;
 
     for (const spkId of speakersToCreate) {
-      // 既存レコード確認
-      const { data: existing } = await supabase
+      // 同じtext_hashの既存レコード確認（テキスト未変更）
+      const { data: sameHash } = await supabase
         .from('minutes_audio')
-        .select('id, status, total_chunks, completed_chunks, speaker_id')
+        .select('id, status, total_chunks, completed_chunks')
         .eq('minute_id', String(minute_id))
         .eq('text_hash', textHash)
         .eq('speaker_id', spkId)
         .single();
 
-      if (existing) {
-        // failed → リセットして再生成
-        if (existing.status === 'failed') {
-          await supabase
-            .from('minutes_audio_chunks')
-            .delete()
-            .eq('audio_id', existing.id);
-
-          await supabase
-            .from('minutes_audio')
-            .update({
-              status: 'generating',
-              total_chunks: totalChunks,
-              completed_chunks: 0,
-              current_chunk_index: 0,
-              progress_text: `0 / ${totalChunks}`,
-              error_message: null,
-              locked_by: null,
-              processing_started_at: null,
-            })
-            .eq('id', existing.id);
-
+      if (sameHash) {
+        // テキスト未変更 → failed以外はそのまま
+        if (sameHash.status === 'failed') {
+          await supabase.from('minutes_audio_chunks').delete().eq('audio_id', sameHash.id);
+          await supabase.from('minutes_audio').update({
+            status: 'generating',
+            total_chunks: totalChunks,
+            completed_chunks: 0,
+            current_chunk_index: 0,
+            progress_text: `0 / ${totalChunks}`,
+            error_message: null,
+            locked_by: null,
+            processing_started_at: null,
+          }).eq('id', sameHash.id);
           console.log(`[TTS] 再生成: speaker=${spkId}, ${totalChunks}チャンク (minute_id=${minute_id})`);
         }
-
         if (spkId === primarySpeaker) {
           primaryResult = {
-            audio_id: existing.id,
-            status: existing.status === 'failed' ? 'generating' : existing.status,
-            total_chunks: existing.total_chunks || totalChunks,
-            completed_chunks: existing.status === 'failed' ? 0 : (existing.completed_chunks || 0),
+            audio_id: sameHash.id,
+            status: sameHash.status === 'failed' ? 'generating' : sameHash.status,
+            total_chunks: sameHash.total_chunks || totalChunks,
+            completed_chunks: sameHash.status === 'failed' ? 0 : (sameHash.completed_chunks || 0),
           };
         }
         continue;
       }
 
+      // テキストが変更された → 旧レコードから未変更チャンクをコピーして差分生成
+      // 旧レコード（同じminute_id + speaker_idで最新のready/generating）を探す
+      const { data: oldRecord } = await supabase
+        .from('minutes_audio')
+        .select('id, text_hash')
+        .eq('minute_id', String(minute_id))
+        .eq('speaker_id', spkId)
+        .neq('text_hash', textHash)
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .single();
+
+      // 旧チャンクのテキスト→音声URLマップを構築
+      let oldChunkMap = new Map<string, { audio_url: string; duration_sec: number }>();
+      if (oldRecord) {
+        const { data: oldChunks } = await supabase
+          .from('minutes_audio_chunks')
+          .select('chunk_text, audio_url, duration_sec')
+          .eq('audio_id', oldRecord.id)
+          .not('audio_url', 'is', null);
+
+        if (oldChunks) {
+          for (const oc of oldChunks) {
+            if (oc.chunk_text && oc.audio_url) {
+              oldChunkMap.set(oc.chunk_text, {
+                audio_url: oc.audio_url,
+                duration_sec: oc.duration_sec || 0,
+              });
+            }
+          }
+        }
+      }
+
       // 新規ジョブ作成
-      console.log(`[TTS] 新規ジョブ: speaker=${spkId}, ${totalChunks}チャンク (minute_id=${minute_id})`);
+      const reusedCount = newChunks.filter(ct => oldChunkMap.has(ct)).length;
+      const needGenCount = totalChunks - reusedCount;
+      console.log(`[TTS] 差分生成: speaker=${spkId}, ${totalChunks}チャンク中 ${reusedCount}件流用, ${needGenCount}件新規生成 (minute_id=${minute_id})`);
 
       const { data: audioRecord, error: insertError } = await supabase
         .from('minutes_audio')
         .insert({
           minute_id: String(minute_id),
           text_hash: textHash,
-          status: 'generating',
+          status: needGenCount === 0 ? 'ready' : 'generating',
           total_chunks: totalChunks,
-          completed_chunks: 0,
-          current_chunk_index: 0,
-          progress_text: `0 / ${totalChunks}`,
+          completed_chunks: reusedCount,
+          current_chunk_index: reusedCount,
+          progress_text: `${reusedCount} / ${totalChunks}`,
           speaker_id: spkId,
         })
         .select('id')
         .single();
 
-      if (insertError) {
+      if (insertError || !audioRecord) {
         console.error(`Insert error (speaker=${spkId}):`, insertError);
         continue;
       }
 
-      if (spkId === primarySpeaker && audioRecord) {
+      // 未変更チャンクの音声をコピー挿入
+      const chunkInserts = [];
+      for (let i = 0; i < newChunks.length; i++) {
+        const old = oldChunkMap.get(newChunks[i]);
+        if (old) {
+          chunkInserts.push({
+            audio_id: audioRecord.id,
+            chunk_index: i,
+            chunk_text: newChunks[i],
+            audio_url: old.audio_url,
+            duration_sec: old.duration_sec,
+          });
+        }
+      }
+      if (chunkInserts.length > 0) {
+        await supabase.from('minutes_audio_chunks').insert(chunkInserts);
+      }
+
+      // 全チャンク流用できた場合は即ready
+      if (needGenCount === 0) {
+        const totalDuration = chunkInserts.reduce((s, c) => s + (c.duration_sec || 0), 0);
+        await supabase.from('minutes_audio').update({
+          duration_sec: totalDuration,
+        }).eq('id', audioRecord.id);
+      }
+
+      // 旧レコードを削除（チャンクも CASCADE or 手動削除）
+      if (oldRecord) {
+        await supabase.from('minutes_audio_chunks').delete().eq('audio_id', oldRecord.id);
+        await supabase.from('minutes_audio').delete().eq('id', oldRecord.id);
+        console.log(`[TTS] 旧レコード削除: audio_id=${oldRecord.id}`);
+      }
+
+      if (spkId === primarySpeaker) {
         primaryResult = {
           audio_id: audioRecord.id,
-          status: 'generating',
+          status: needGenCount === 0 ? 'ready' : 'generating',
           total_chunks: totalChunks,
-          completed_chunks: 0,
+          completed_chunks: reusedCount,
         };
       }
     }
