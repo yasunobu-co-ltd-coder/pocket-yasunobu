@@ -225,6 +225,7 @@ async function extractInsights(normalizedTopics: Record<string, unknown>): Promi
   良い例: 「来月の営業デモで議事録品質を見せるため、三段ロケット構成の精度検証を今週中に完了する必要がある」
 
 ■ nextSchedule: 次回予定がある場合はYYYY年MM月DD日形式で記載。曜日があれば含める。不明なら空文字。
+  - 今日の日付は ${TODAY()} です。「来週」「再来週」「次の木曜」等の相対表現はこの日付を基準に変換すること。
 
 ■ risks: 未解決課題や懸念事項
 ■ importantPoints: 戦略的に重要な内容
