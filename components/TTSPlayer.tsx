@@ -134,15 +134,22 @@ const TTSPlayer = forwardRef<TTSPlayerHandle, TTSPlayerProps>(function TTSPlayer
 
   const handleVoiceChange = (newId: number) => {
     if (newId === speakerId) return;
+    // 即座にローディング状態にして前のUI表示を消す
+    setStatus('loading');
     if (audioRef.current) { audioRef.current.pause(); audioRef.current.currentTime = 0; audioRef.current = null; }
     isPlayingRef.current = false;
     updatePlayState(false);
     stopPolling();
+    speakerIdRef.current = newId;
     setSpeakerId(newId);
     setChunks([]);
+    chunksRef.current = [];
     updateProgress(0);
     setCurrentChunkIndex(0);
     setIsFullyReady(false);
+    setErrorMsg('');
+    setGenTotal(0);
+    setGenCompleted(0);
     checkStatus(newId, true);
   };
 
@@ -198,8 +205,12 @@ const TTSPlayer = forwardRef<TTSPlayerHandle, TTSPlayerProps>(function TTSPlayer
   const checkStatus = async (spkId: number, autoGenerate = false) => {
     try {
       const res = await fetch(`/api/tts/status?minute_id=${minuteId}&speaker_id=${spkId}`);
+      // レスポンス返却時に既に別キャラに切替済みなら無視
+      if (spkId !== speakerIdRef.current) return;
       if (!res.ok) { setStatus('not_generated'); return; }
       const data = await res.json();
+      // 再度チェック（awaitの間に変わる可能性）
+      if (spkId !== speakerIdRef.current) return;
 
       if (data.status === 'ready' && data.chunks?.length > 0) {
         setChunks(data.chunks);
@@ -235,14 +246,17 @@ const TTSPlayer = forwardRef<TTSPlayerHandle, TTSPlayerProps>(function TTSPlayer
     setGenTotal(0);
     setIsFullyReady(false);
     setChunks([]);
+    chunksRef.current = [];
     try {
       const res = await fetch('/api/tts/generate', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ minute_id: minuteId, speaker_id: spkId }),
       });
+      if (spkId !== speakerIdRef.current) return;
       if (!res.ok) { setStatus('not_generated'); return; }
       const data = await res.json();
+      if (spkId !== speakerIdRef.current) return;
       setGenTotal(data.total_chunks || 0);
       setGenCompleted(data.completed_chunks || 0);
       if (data.status === 'ready') {
@@ -251,7 +265,7 @@ const TTSPlayer = forwardRef<TTSPlayerHandle, TTSPlayerProps>(function TTSPlayer
         startPolling(spkId);
       }
     } catch {
-      setStatus('not_generated');
+      if (spkId === speakerIdRef.current) setStatus('not_generated');
     }
   };
 
