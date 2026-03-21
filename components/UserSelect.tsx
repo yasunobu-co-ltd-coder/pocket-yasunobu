@@ -641,9 +641,9 @@ export default function UserSelect({ onSelect }: UserSelectProps) {
                                 <h3 className="text-[14px] font-bold text-slate-700 mb-3">用語辞書</h3>
                                 <div className="bg-slate-50 rounded-[12px] p-4">
                                     <p className="text-[13px] text-slate-600 leading-[1.7]">
-                                        ヘッダーの <span className="inline-flex items-center"><BookMarked className="w-3 h-3 mx-0.5" /></span> アイコンから用語辞書を開けます。
-                                        音声認識で誤変換されやすい固有名詞（社名・人名・専門用語）を登録しておくと、
-                                        議事録生成時に自動で正しい表記に置換されます。
+                                        よく使う顧客名・商品名・専門用語などをあらかじめ登録しておくリストです。
+                                        ヘッダーの <span className="inline-flex items-center"><BookMarked className="w-3 h-3 mx-0.5" /></span> アイコンから開けます。
+                                        文字起こし後に不自然な表記があれば、辞書を参照して正しい表記に書き換えてください。
                                     </p>
                                 </div>
                             </div>
