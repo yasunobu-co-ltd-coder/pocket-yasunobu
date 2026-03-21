@@ -181,7 +181,7 @@ export default function Page() {
       <header className="bg-white z-50 border-b border-slate-100">
         <div className="px-6 py-5 flex items-center justify-between">
           <span className="font-extrabold text-[17px] bg-gradient-to-r from-violet-800 to-violet-500 bg-clip-text text-transparent tracking-[-0.5px]">
-            pocket-yasunobu
+            pocket
           </span>
           <div className="flex items-center gap-3">
             <div className="bg-slate-100 rounded-full px-4 py-2">
