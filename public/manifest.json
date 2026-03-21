@@ -1,6 +1,6 @@
 {
-  "name": "Pocket Yasunobu",
-  "short_name": "Pocket Yasunobu",
+  "name": "pocket-yasunobu",
+  "short_name": "pocket-yasunobu",
   "description": "AI議事録アシスタント",
   "start_url": "/",
   "display": "standalone",

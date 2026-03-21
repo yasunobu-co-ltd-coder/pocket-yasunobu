@@ -302,7 +302,7 @@ export default function UserSelect({ onSelect }: UserSelectProps) {
                         <Lock className="w-9 h-9 text-white" />
                     </div>
                     <h1 className="font-extrabold text-[26px] bg-gradient-to-r from-violet-800 to-violet-500 bg-clip-text text-transparent tracking-[-0.5px] mb-2">
-                        Pocket Yasunobu
+                        pocket-yasunobu
                     </h1>
                     <p className="text-slate-400 text-[13px]">PINコードを入力してください</p>
                 </div>
@@ -347,7 +347,7 @@ export default function UserSelect({ onSelect }: UserSelectProps) {
                     <Mic className="w-9 h-9 text-white" />
                 </div>
                 <h1 className="font-extrabold text-[26px] bg-gradient-to-r from-violet-800 to-violet-500 bg-clip-text text-transparent tracking-[-0.5px] mb-1">
-                    Pocket Yasunobu
+                    pocket-yasunobu
                 </h1>
                 <p className="text-[11px] text-slate-300 font-mono select-all mb-1">v0.1.0 / {process.env.NEXT_PUBLIC_GIT_HASH || 'dev'}</p>
                 <p className="text-slate-400 text-[13px]">AI議事録アシスタント</p>

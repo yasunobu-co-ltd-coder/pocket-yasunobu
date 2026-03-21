@@ -3,7 +3,7 @@ import './globals.css';
 import { ServiceWorkerRegistration } from './components/ServiceWorkerRegistration';
 
 export const metadata: Metadata = {
-  title: 'Pocket Yasunobu',
+  title: 'pocket-yasunobu',
   description: '音声から議事録を自動生成',
   manifest: '/manifest.json',
   icons: {
@@ -11,23 +11,23 @@ export const metadata: Metadata = {
     apple: '/annyan.png',
   },
   openGraph: {
-    title: 'Pocket Yasunobu',
+    title: 'pocket-yasunobu',
     description: '音声から議事録を自動生成',
-    siteName: 'Pocket Yasunobu',
-    images: [{ url: '/annyan.png', width: 512, height: 512, alt: 'Pocket Yasunobu' }],
+    siteName: 'pocket-yasunobu',
+    images: [{ url: '/annyan.png', width: 512, height: 512, alt: 'pocket-yasunobu' }],
     locale: 'ja_JP',
     type: 'website',
   },
   twitter: {
     card: 'summary',
-    title: 'Pocket Yasunobu',
+    title: 'pocket-yasunobu',
     description: '音声から議事録を自動生成',
     images: ['/annyan.png'],
   },
   appleWebApp: {
     capable: true,
     statusBarStyle: 'default',
-    title: 'Pocket Yasunobu',
+    title: 'pocket-yasunobu',
   },
 };
 
