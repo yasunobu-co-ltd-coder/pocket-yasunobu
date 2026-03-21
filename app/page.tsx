@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect, useMemo, useRef } from 'react';
-import { Mic, LogOut, Home, List, Search, ChevronRight, X, User, Download, Loader2, BookOpen, Play, Pause, Square } from 'lucide-react';
+import { Mic, LogOut, Home, List, Search, ChevronRight, X, User, Download, Loader2, BookOpen, BookMarked, HelpCircle, Play, Pause, Square } from 'lucide-react';
 import UserSelect, { UserData } from '@/components/UserSelect';
 import HistoryList from '@/components/HistoryList';
 import VoiceRecorder from '@/components/VoiceRecorder';
@@ -37,6 +37,8 @@ export default function Page() {
 
   // Term dictionary modal
   const [isDictOpen, setIsDictOpen] = useState(false);
+  const [showRulebook, setShowRulebook] = useState(false);
+  const [showHelp, setShowHelp] = useState(false);
 
   const [isHomeDeleting, setIsHomeDeleting] = useState(false);
 
@@ -187,6 +189,16 @@ export default function Page() {
             <div className="bg-slate-100 rounded-full px-4 py-2">
               <span className="text-[13px] font-semibold text-slate-600">{currentUser.name}</span>
             </div>
+            <button onClick={() => setShowRulebook(true)}
+              className="text-slate-400 hover:text-violet-600 transition-colors p-2 rounded-lg hover:bg-violet-50"
+              title="ルルブ">
+              <BookMarked className="w-[16px] h-[16px]" />
+            </button>
+            <button onClick={() => setShowHelp(true)}
+              className="text-slate-400 hover:text-violet-600 transition-colors p-2 rounded-lg hover:bg-violet-50"
+              title="ヘルプ">
+              <HelpCircle className="w-[16px] h-[16px]" />
+            </button>
             <button onClick={() => setIsDictOpen(true)}
               className="text-slate-400 hover:text-violet-600 transition-colors p-2 rounded-lg hover:bg-violet-50"
               title="用語辞書">
@@ -375,6 +387,163 @@ export default function Page() {
 
       {/* ===== Term Dictionary Modal ===== */}
       <TermDictionary userId={currentUser.id} isOpen={isDictOpen} onClose={() => setIsDictOpen(false)} />
+
+      {/* ===== Rulebook overlay ===== */}
+      {showRulebook && (
+        <div className="fixed inset-0 bg-black/50 z-[100] flex items-center justify-center p-5"
+          onClick={(e) => { if (e.target === e.currentTarget) setShowRulebook(false); }}>
+          <div className="bg-white rounded-[20px] w-full max-w-[400px] max-h-[80vh] overflow-y-auto shadow-xl">
+            <div className="px-7 pt-7 pb-4 border-b border-slate-100 flex items-center justify-between">
+              <h2 className="text-[17px] font-bold text-slate-800 flex items-center gap-2">
+                <BookMarked className="w-5 h-5 text-violet-500" />ルルブ
+              </h2>
+              <button onClick={() => setShowRulebook(false)}
+                className="w-8 h-8 rounded-full bg-slate-100 flex items-center justify-center hover:bg-slate-200 transition-colors">
+                <X className="w-4 h-4 text-slate-500" />
+              </button>
+            </div>
+            <div className="p-7 space-y-6">
+              <div className="bg-red-50 border-2 border-red-500 rounded-[12px] p-4 space-y-3">
+                <div className="flex items-center gap-2">
+                  <span className="bg-red-500 text-white text-[11px] font-extrabold px-2.5 py-0.5 rounded-full">最重要</span>
+                  <span className="text-[15px] font-extrabold text-red-600">顧客名の入力ルール</span>
+                </div>
+                <p className="text-[13px] text-slate-800 leading-[1.8]">
+                  議事録名は、必ず<span className="font-bold">顧客名を先頭</span>に書き、
+                  スペースまたはスラッシュ（/）で区切ってから会議内容や日時を入力してください。
+                </p>
+                <div className="bg-white rounded-[8px] px-4 py-3 text-[13px] text-slate-700 leading-[1.8]">
+                  <p className="text-[12px] font-bold text-slate-500 mb-1">入力例</p>
+                  <p className="text-green-600">○ <span className="font-bold">ABC商事 月次定例会</span></p>
+                  <p className="text-green-600">○ <span className="font-bold">田中建設/現場打合せ 3月</span></p>
+                  <p className="text-green-600">○ <span className="font-bold">社内 営業戦略MTG</span></p>
+                  <p className="text-green-600">○ <span className="font-bold">C工業 見積もり依頼</span></p>
+                  <div className="border-t border-slate-100 mt-2 pt-2 space-y-0.5">
+                    <p className="text-red-500">× 月次定例会（ABC商事）← 顧客名が先頭にない</p>
+                    <p className="text-red-500">× 現場打合せメモ ← 顧客名がない</p>
+                    <p className="text-red-500">× ABC商事 ← 会議内容がない</p>
+                    <p className="text-red-500">× 打合せについてABC商事と確認 ← 顧客名が埋もれている</p>
+                    <p className="text-red-500">× テスト ← 仮名で保存しない</p>
+                  </div>
+                </div>
+                <div className="bg-white rounded-[8px] border border-slate-200 px-4 py-3 space-y-1.5">
+                  <p className="text-[12px] text-slate-500 font-bold">ルール詳細:</p>
+                  <ul className="text-[12px] text-slate-600 leading-[1.8] space-y-0.5 list-none">
+                    <li>・顧客名は<span className="font-bold text-slate-800">社内で統一された表記</span>を使用すること</li>
+                    <li>・顧客名の後に<span className="font-bold text-slate-800">スペースまたは /</span> で区切る</li>
+                    <li>・区切りの後に会議の内容・日時などを記載する</li>
+                  </ul>
+                </div>
+                <p className="text-[12px] text-red-600 font-bold leading-[1.6]">
+                  ※ ナレッジデータベースで顧客別に議事録を集約するため、このルールは必ず守ってください。
+                </p>
+              </div>
+              <div>
+                <div className="flex items-center gap-2 mb-3">
+                  <span className="bg-amber-500 text-white text-[10px] font-bold px-2 py-0.5 rounded-full">重要</span>
+                  <h3 className="text-[14px] font-bold text-slate-700">担当者の確認</h3>
+                </div>
+                <div className="bg-amber-50 border border-amber-200 rounded-[12px] p-4">
+                  <p className="text-[13px] text-amber-700 leading-[1.7]">
+                    録音を開始する前に、<span className="font-bold">自分の名前で選択されているか</span>必ず確認してください。
+                    別の担当者の名前のまま保存すると、その人の議事録一覧に紛れ込みます。
+                    共有端末を使用している場合は特に注意してください。
+                  </p>
+                </div>
+              </div>
+              <div>
+                <div className="flex items-center gap-2 mb-3">
+                  <span className="bg-amber-500 text-white text-[10px] font-bold px-2 py-0.5 rounded-full">重要</span>
+                  <h3 className="text-[14px] font-bold text-slate-700">録音のバックアップ</h3>
+                </div>
+                <div className="bg-amber-50 border border-amber-200 rounded-[12px] p-4 space-y-2">
+                  <p className="text-[13px] text-amber-700 leading-[1.7]">
+                    ブラウザでの録音は、端末のスリープ・通知・他アプリへの切り替え・通信状況など
+                    様々な要因で<span className="font-bold">途中で途切れる可能性</span>があります。
+                    特に長時間の会議では注意が必要です。
+                  </p>
+                  <p className="text-[13px] text-amber-700 leading-[1.7] font-bold">
+                    必ずボイスレコーダー等で別途バックアップ録音を取ってください。
+                  </p>
+                  <p className="text-[12px] text-amber-600 leading-[1.6]">
+                    万が一録音が切れた場合でも、音声ファイルを後からアップロードして議事録を生成できます。
+                    バックアップの有無は自己責任となります。
+                  </p>
+                </div>
+              </div>
+              <div>
+                <h3 className="text-[14px] font-bold text-slate-700 mb-3">音声生成について</h3>
+                <div className="bg-slate-50 rounded-[12px] p-4">
+                  <p className="text-[13px] text-slate-600 leading-[1.7]">
+                    議事録を保存すると、読み上げ音声の生成が自動で開始されます。
+                    生成中（「生成中...」表示）は議事録の編集を控えてください。
+                    内容を変更すると音声との整合性がなくなります。
+                  </p>
+                </div>
+              </div>
+              <div>
+                <h3 className="text-[14px] font-bold text-slate-700 mb-3">用語辞書</h3>
+                <div className="bg-slate-50 rounded-[12px] p-4">
+                  <p className="text-[13px] text-slate-600 leading-[1.7]">
+                    ヘッダーの <span className="inline-flex items-center"><BookOpen className="w-3 h-3 mx-0.5" /></span> アイコンから用語辞書を開けます。
+                    音声認識で誤変換されやすい固有名詞（社名・人名・専門用語）を登録しておくと、
+                    議事録生成時に自動で正しい表記に置換されます。
+                  </p>
+                </div>
+              </div>
+              <div>
+                <h3 className="text-[14px] font-bold text-slate-700 mb-3">キャラクターボイス</h3>
+                <div className="bg-slate-50 rounded-[12px] p-4">
+                  <p className="text-[13px] text-slate-600 leading-[1.7]">
+                    読み上げ音声は4種類のキャラクターから選べます。
+                    再生画面の「キャラクターを変更」から切り替えてください。
+                    初回選択時は音声が生成されるまで少し時間がかかります。
+                  </p>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ===== Help overlay ===== */}
+      {showHelp && (
+        <div className="fixed inset-0 bg-black/50 z-[100] flex items-center justify-center p-5"
+          onClick={(e) => { if (e.target === e.currentTarget) setShowHelp(false); }}>
+          <div className="bg-white rounded-[20px] w-full max-w-[400px] max-h-[80vh] overflow-y-auto shadow-xl">
+            <div className="px-7 pt-7 pb-4 border-b border-slate-100 flex items-center justify-between">
+              <h2 className="text-[17px] font-bold text-slate-800 flex items-center gap-2">
+                <HelpCircle className="w-5 h-5 text-violet-500" />ヘルプ
+              </h2>
+              <button onClick={() => setShowHelp(false)}
+                className="w-8 h-8 rounded-full bg-slate-100 flex items-center justify-center hover:bg-slate-200 transition-colors">
+                <X className="w-4 h-4 text-slate-500" />
+              </button>
+            </div>
+            <div className="p-7 space-y-5">
+              {[
+                { q: '録音が途中で止まる', a: 'ブラウザのマイク許可を確認してください。また、画面をロックしたり他のアプリに切り替えると録音が中断されることがあります。録音中は画面を開いたままにしてください。' },
+                { q: '議事録の内容がおかしい', a: '音声が小さい・雑音が多いと認識精度が下がります。マイクに近い位置で録音してください。また、用語辞書に固有名詞を登録しておくと、誤変換が減ります。' },
+                { q: '音声が再生できない', a: '音声は保存後にサーバーで自動生成されます。「生成中...」の表示が消えるまでお待ちください。長い議事録は数分かかることがあります。' },
+                { q: 'キャラクターを変えたら「生成中」になった', a: '初めて選んだキャラクターの音声はその場で生成されます。しばらくお待ちください。一度生成された音声はキャッシュされるので、次回からは即再生できます。' },
+                { q: '議事録を編集したら音声はどうなる？', a: '編集後の内容で新しい音声が自動生成されます。編集前の音声は古いテキストに紐づいているため、新しい音声の生成が完了するまでお待ちください。' },
+                { q: 'PDFに出力したい', a: '議事録の詳細画面を開き、「PDFで出力」ボタンを押してください。ブラウザのダウンロードフォルダに保存されます。' },
+                { q: '担当者を並び替えたい', a: 'ユーザー選択画面で、名前の左にあるグリップ（⋮⋮）を長押ししてドラッグすると並び替えられます。' },
+                { q: 'スマホのホーム画面に追加したい', a: 'ブラウザの共有メニュー（iOS: Safari の共有ボタン → ホーム画面に追加 / Android: Chrome のメニュー → ホーム画面に追加）から追加できます。' },
+              ].map((item, i) => (
+                <div key={i} className="bg-slate-50 rounded-[12px] overflow-hidden">
+                  <div className="px-4 py-3 bg-slate-100">
+                    <p className="text-[13px] font-bold text-slate-700">Q. {item.q}</p>
+                  </div>
+                  <div className="px-4 py-3">
+                    <p className="text-[12px] text-slate-600 leading-[1.7]">A. {item.a}</p>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* ===== フローティングミニプレイヤー（バックグラウンド再生中） ===== */}
       {selectedHomeRecord && !isModalVisible && (
