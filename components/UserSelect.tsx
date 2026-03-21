@@ -302,7 +302,7 @@ export default function UserSelect({ onSelect }: UserSelectProps) {
                         <Lock className="w-9 h-9 text-white" />
                     </div>
                     <h1 className="font-extrabold text-[26px] bg-gradient-to-r from-violet-800 to-violet-500 bg-clip-text text-transparent tracking-[-0.5px] mb-2">
-                        pocket
+                        pocket-yasunobu
                     </h1>
                     <p className="text-slate-400 text-[13px]">PINコードを入力してください</p>
                 </div>
