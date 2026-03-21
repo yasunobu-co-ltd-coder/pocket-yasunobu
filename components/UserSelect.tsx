@@ -550,51 +550,41 @@ export default function UserSelect({ onSelect }: UserSelectProps) {
                             </button>
                         </div>
                         <div className="p-7 space-y-6">
-                            {/* ── 最重要: 命名規則 ── */}
-                            <div>
-                                <div className="flex items-center gap-2 mb-3">
-                                    <span className="bg-red-500 text-white text-[10px] font-bold px-2 py-0.5 rounded-full">最重要</span>
-                                    <h3 className="text-[14px] font-bold text-slate-700">議事録名の命名規則</h3>
+                            {/* ── 最重要: 顧客名の入力ルール ── */}
+                            <div className="bg-red-50 border-2 border-red-500 rounded-[12px] p-4 space-y-3">
+                                <div className="flex items-center gap-2">
+                                    <span className="bg-red-500 text-white text-[11px] font-extrabold px-2.5 py-0.5 rounded-full">最重要</span>
+                                    <span className="text-[15px] font-extrabold text-red-600">顧客名の入力ルール</span>
                                 </div>
-                                <div className="bg-red-50 border border-red-200 rounded-[12px] p-4 space-y-3">
-                                    <p className="text-[13px] text-red-700 leading-[1.7] font-medium">
-                                        議事録名は将来ナレッジデータベースの顧客リスト作成に直結します。
-                                        命名規則を守らないとデータ整備時に大きな手戻りが発生するため、
-                                        <span className="font-bold underline">必ず以下のルールに従ってください。</span>
-                                    </p>
-                                    <div className="bg-white rounded-[8px] border-2 border-red-300 px-4 py-3">
-                                        <p className="text-[12px] text-red-400 mb-1">フォーマット（厳守）</p>
-                                        <p className="text-[15px] font-bold text-red-600">顧客名 / タイトル・日時など</p>
-                                    </div>
-                                    <div className="bg-white rounded-[8px] border border-slate-200 px-4 py-3 space-y-2">
-                                        <p className="text-[12px] text-slate-500 font-bold">ルール詳細:</p>
-                                        <ul className="text-[12px] text-slate-600 leading-[1.8] space-y-1 list-none">
-                                            <li>・顧客名は<span className="font-bold text-slate-800">社内で統一された表記</span>を使用すること</li>
-                                            <li>・顧客名の後に<span className="font-bold text-slate-800">スペースまたはスラッシュ（/）</span>で区切る</li>
-                                            <li>・区切りの後に会議の内容や日時を記載する</li>
-                                            <li>・「テスト」「あああ」等の仮名で保存しない</li>
-                                        </ul>
-                                    </div>
-                                    <div className="space-y-2">
-                                        <p className="text-[12px] text-slate-400">入力例:</p>
-                                        <div className="space-y-1.5">
-                                            <p className="text-[13px] text-slate-600 bg-white rounded-[6px] px-3 py-2 border border-slate-100">ABC商事 / 月次定例会</p>
-                                            <p className="text-[13px] text-slate-600 bg-white rounded-[6px] px-3 py-2 border border-slate-100">田中建設 / 現場打合せ 3/22</p>
-                                            <p className="text-[13px] text-slate-600 bg-white rounded-[6px] px-3 py-2 border border-slate-100">社内 / 営業戦略MTG</p>
-                                        </div>
-                                    </div>
-                                    <div className="space-y-2">
-                                        <p className="text-[12px] text-red-400 font-bold">NG例:</p>
-                                        <div className="space-y-1.5">
-                                            <p className="text-[13px] text-red-400 bg-white rounded-[6px] px-3 py-2 border border-red-100 line-through">打合せメモ</p>
-                                            <p className="text-[13px] text-red-400 bg-white rounded-[6px] px-3 py-2 border border-red-100 line-through">3月22日の会議</p>
-                                            <p className="text-[13px] text-red-400 bg-white rounded-[6px] px-3 py-2 border border-red-100 line-through">テスト</p>
-                                        </div>
-                                        <p className="text-[11px] text-red-400 leading-[1.6]">
-                                            ※ 顧客名がないと、どの顧客の議事録か後から判別できません
-                                        </p>
+                                <p className="text-[13px] text-slate-800 leading-[1.8]">
+                                    議事録名は、必ず<span className="font-bold">顧客名を先頭</span>に書き、
+                                    スペースまたはスラッシュ（/）で区切ってから会議内容や日時を入力してください。
+                                </p>
+                                <div className="bg-white rounded-[8px] px-4 py-3 text-[13px] text-slate-700 leading-[1.8]">
+                                    <p className="text-[12px] font-bold text-slate-500 mb-1">入力例</p>
+                                    <p className="text-green-600">○ <span className="font-bold">ABC商事 月次定例会</span></p>
+                                    <p className="text-green-600">○ <span className="font-bold">田中建設/現場打合せ 3月</span></p>
+                                    <p className="text-green-600">○ <span className="font-bold">社内 営業戦略MTG</span></p>
+                                    <p className="text-green-600">○ <span className="font-bold">C工業 見積もり依頼</span></p>
+                                    <div className="border-t border-slate-100 mt-2 pt-2 space-y-0.5">
+                                        <p className="text-red-500">× 月次定例会（ABC商事）← 顧客名が先頭にない</p>
+                                        <p className="text-red-500">× 現場打合せメモ ← 顧客名がない</p>
+                                        <p className="text-red-500">× ABC商事 ← 会議内容がない</p>
+                                        <p className="text-red-500">× 打合せについてABC商事と確認 ← 顧客名が埋もれている</p>
+                                        <p className="text-red-500">× テスト ← 仮名で保存しない</p>
                                     </div>
                                 </div>
+                                <div className="bg-white rounded-[8px] border border-slate-200 px-4 py-3 space-y-1.5">
+                                    <p className="text-[12px] text-slate-500 font-bold">ルール詳細:</p>
+                                    <ul className="text-[12px] text-slate-600 leading-[1.8] space-y-0.5 list-none">
+                                        <li>・顧客名は<span className="font-bold text-slate-800">社内で統一された表記</span>を使用すること</li>
+                                        <li>・顧客名の後に<span className="font-bold text-slate-800">スペースまたは /</span> で区切る</li>
+                                        <li>・区切りの後に会議の内容・日時などを記載する</li>
+                                    </ul>
+                                </div>
+                                <p className="text-[12px] text-red-600 font-bold leading-[1.6]">
+                                    ※ ナレッジデータベースで顧客別に議事録を集約するため、このルールは必ず守ってください。
+                                </p>
                             </div>
 
                             {/* ── 重要: 担当者の確認 ── */}
