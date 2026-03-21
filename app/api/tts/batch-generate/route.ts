@@ -1,7 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getSupabaseAdmin } from '@/lib/supabase';
-import { generateTextHash } from '@/lib/tts-chunk-splitter';
-import { splitTextIntoChunks } from '@/lib/tts-chunk-splitter';
+import { generateTextHash, splitTextIntoChunks } from '@/lib/tts-chunk-splitter';
 
 export const runtime = 'nodejs';
 
@@ -25,7 +24,8 @@ export async function POST(req: NextRequest) {
       .from(TABLE_NAME)
       .select('id, summary')
       .not('summary', 'is', null)
-      .order('created_at', { ascending: false });
+      .order('created_at', { ascending: false })
+      .limit(batchSize * 3);
 
     if (fetchErr || !minutes) {
       return NextResponse.json({ error: '議事録の取得に失敗しました' }, { status: 500 });

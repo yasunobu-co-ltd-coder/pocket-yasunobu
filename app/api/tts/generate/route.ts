@@ -68,21 +68,29 @@ export async function POST(req: NextRequest) {
       console.log(`[TTS] キュー混雑 (${queueDepth}件) → speaker=${primarySpeaker} のみ作成`);
     }
 
-    // 4. 対象スピーカーについてジョブを作成/確認
+    // 4. 既存レコードを一括取得（スピーカーごとの個別クエリを排除）
+    const { data: existingRecords } = await supabase
+      .from('minutes_audio')
+      .select('id, status, total_chunks, completed_chunks, text_hash, speaker_id')
+      .eq('minute_id', String(minute_id))
+      .in('speaker_id', speakersToCreate)
+      .order('created_at', { ascending: false });
+
+    const sameHashMap = new Map<number, { id: string; status: string; total_chunks: number; completed_chunks: number }>();
+    const oldRecordMap = new Map<number, { id: string; text_hash: string }>();
+    for (const r of existingRecords || []) {
+      if (r.text_hash === textHash) {
+        if (!sameHashMap.has(r.speaker_id)) sameHashMap.set(r.speaker_id, r);
+      } else {
+        if (!oldRecordMap.has(r.speaker_id)) oldRecordMap.set(r.speaker_id, r);
+      }
+    }
+
     let primaryResult: { audio_id: string; status: string; total_chunks: number; completed_chunks: number } | null = null;
 
     for (const spkId of speakersToCreate) {
-      // 同じtext_hashの既存レコード確認（テキスト未変更）
-      const { data: sameHash } = await supabase
-        .from('minutes_audio')
-        .select('id, status, total_chunks, completed_chunks')
-        .eq('minute_id', String(minute_id))
-        .eq('text_hash', textHash)
-        .eq('speaker_id', spkId)
-        .single();
-
+      const sameHash = sameHashMap.get(spkId);
       if (sameHash) {
-        // テキスト未変更 → failed以外はそのまま
         if (sameHash.status === 'failed') {
           await supabase.from('minutes_audio_chunks').delete().eq('audio_id', sameHash.id);
           await supabase.from('minutes_audio').update({
@@ -108,17 +116,7 @@ export async function POST(req: NextRequest) {
         continue;
       }
 
-      // テキストが変更された → 旧レコードから未変更チャンクをコピーして差分生成
-      // 旧レコード（同じminute_id + speaker_idで最新のready/generating）を探す
-      const { data: oldRecord } = await supabase
-        .from('minutes_audio')
-        .select('id, text_hash')
-        .eq('minute_id', String(minute_id))
-        .eq('speaker_id', spkId)
-        .neq('text_hash', textHash)
-        .order('created_at', { ascending: false })
-        .limit(1)
-        .single();
+      const oldRecord = oldRecordMap.get(spkId) || null;
 
       // 旧チャンクのテキスト→音声URLマップを構築
       let oldChunkMap = new Map<string, { audio_url: string; duration_sec: number }>();

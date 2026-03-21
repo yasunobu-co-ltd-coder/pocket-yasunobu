@@ -27,7 +27,6 @@ export interface TTSPlayerHandle {
   stop: () => void;
 }
 
-// 選択可能な声（全てノーマル）
 const VOICE_OPTIONS = [
   { id: 2, name: '四国めたん', desc: '落ち着いた女性声' },
   { id: 8, name: '春日部つむぎ', desc: '明るい女性声' },
@@ -36,7 +35,7 @@ const VOICE_OPTIONS = [
 ] as const;
 
 const SPEED_OPTIONS = [1, 1.25, 1.5, 2] as const;
-const STATUS_POLL_INTERVAL = 2000;
+const POLL_MS = 2000;
 
 const TTSPlayer = forwardRef<TTSPlayerHandle, TTSPlayerProps>(function TTSPlayer(
   { minuteId, summaryText, clientName, onPlaybackChange, onProgressChange },
@@ -46,77 +45,80 @@ const TTSPlayer = forwardRef<TTSPlayerHandle, TTSPlayerProps>(function TTSPlayer
   const [chunks, setChunks] = useState<AudioChunk[]>([]);
   const [currentChunkIndex, setCurrentChunkIndex] = useState(0);
   const [speed, setSpeed] = useState<number>(() => {
-    if (typeof window !== 'undefined') {
-      const saved = localStorage.getItem('tts-speed');
-      if (saved) {
-        const parsed = parseFloat(saved);
-        if (!isNaN(parsed) && [1, 1.25, 1.5, 2].includes(parsed)) return parsed;
-      }
-    }
-    return 1;
+    if (typeof window === 'undefined') return 1;
+    const v = parseFloat(localStorage.getItem('tts-speed') || '');
+    return !isNaN(v) && [1, 1.25, 1.5, 2].includes(v) ? v : 1;
   });
   const [speakerId, setSpeakerId] = useState<number>(() => {
-    if (typeof window !== 'undefined') {
-      const saved = localStorage.getItem('tts-speaker-id');
-      if (saved) {
-        const parsed = parseInt(saved, 10);
-        if (VOICE_OPTIONS.some(v => v.id === parsed)) return parsed;
-      }
-    }
-    return 3;
+    if (typeof window === 'undefined') return 3;
+    const v = parseInt(localStorage.getItem('tts-speaker-id') || '', 10);
+    return VOICE_OPTIONS.some(o => o.id === v) ? v : 3;
   });
   const [errorMsg, setErrorMsg] = useState('');
   const [progress, setProgress] = useState(0);
-
   const [genTotal, setGenTotal] = useState(0);
   const [genCompleted, setGenCompleted] = useState(0);
   const [isFullyReady, setIsFullyReady] = useState(false);
 
   const audioRef = useRef<HTMLAudioElement | null>(null);
-  const nextAudioRef = useRef<HTMLAudioElement | null>(null); // プリロード用
+  const nextAudioRef = useRef<HTMLAudioElement | null>(null);
   const isPlayingRef = useRef(false);
-  const internalPauseRef = useRef(false); // 内部操作によるpauseかどうか
+  const internalPauseRef = useRef(false);
   const pollTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const speedRef = useRef(speed);
   const chunksRef = useRef<AudioChunk[]>([]);
   const speakerIdRef = useRef(speakerId);
 
-  // 親からの操作用
   useImperativeHandle(ref, () => ({
     play: handlePlay,
     pause: handlePause,
     stop: handleStop,
   }));
 
-  useEffect(() => { checkStatus(speakerId); }, [minuteId]); // eslint-disable-line react-hooks/exhaustive-deps
-
+  // --- sync refs ---
+  useEffect(() => { chunksRef.current = chunks; }, [chunks]);
   useEffect(() => {
     speedRef.current = speed;
     if (audioRef.current) audioRef.current.playbackRate = speed;
     if (nextAudioRef.current) nextAudioRef.current.playbackRate = speed;
     localStorage.setItem('tts-speed', String(speed));
   }, [speed]);
-
   useEffect(() => {
     speakerIdRef.current = speakerId;
     localStorage.setItem('tts-speaker-id', String(speakerId));
   }, [speakerId]);
 
-  // 再生状態変更 → 親通知 + Media Session
-  const updatePlayState = useCallback((playing: boolean) => {
+  // --- callbacks ---
+  const notifyPlay = useCallback((playing: boolean) => {
     onPlaybackChange?.(playing);
     if ('mediaSession' in navigator) {
       navigator.mediaSession.playbackState = playing ? 'playing' : 'paused';
     }
   }, [onPlaybackChange]);
 
-  // プログレス変更 → 親通知
-  const updateProgress = useCallback((val: number) => {
+  const notifyProgress = useCallback((val: number) => {
     setProgress(val);
     onProgressChange?.(val);
   }, [onProgressChange]);
 
-  // Media Session API
+  // --- cleanup helpers ---
+  const stopPolling = useCallback(() => {
+    if (pollTimerRef.current) { clearInterval(pollTimerRef.current); pollTimerRef.current = null; }
+  }, []);
+
+  const cleanupAudio = useCallback(() => {
+    internalPauseRef.current = true;
+    if (audioRef.current) { audioRef.current.pause(); audioRef.current.currentTime = 0; audioRef.current = null; }
+    nextAudioRef.current = null;
+    internalPauseRef.current = false;
+  }, []);
+
+  useEffect(() => { return () => { stopPolling(); cleanupAudio(); }; }, [stopPolling, cleanupAudio]);
+
+  // --- init ---
+  useEffect(() => { checkStatus(speakerId); }, [minuteId]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // --- Media Session ---
   useEffect(() => {
     if (!('mediaSession' in navigator)) return;
     const voice = VOICE_OPTIONS.find(v => v.id === speakerId);
@@ -135,56 +137,18 @@ const TTSPlayer = forwardRef<TTSPlayerHandle, TTSPlayerProps>(function TTSPlayer
     };
   }, [speakerId, clientName, status]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  const handleVoiceChange = (newId: number) => {
-    if (newId === speakerId) return;
-    // 即座にローディング状態にして前のUI表示を消す
-    setStatus('loading');
-    internalPauseRef.current = true;
-    if (audioRef.current) { audioRef.current.pause(); audioRef.current.currentTime = 0; audioRef.current = null; }
-    nextAudioRef.current = null;
-    internalPauseRef.current = false;
-    isPlayingRef.current = false;
-    updatePlayState(false);
-    stopPolling();
-    speakerIdRef.current = newId;
-    setSpeakerId(newId);
-    setChunks([]);
-    chunksRef.current = [];
-    updateProgress(0);
-    setCurrentChunkIndex(0);
-    setIsFullyReady(false);
-    setErrorMsg('');
-    setGenTotal(0);
-    setGenCompleted(0);
-    checkStatus(newId, true);
-  };
-
-  useEffect(() => {
-    return () => { stopPolling(); };
-  }, []);
-
-  useEffect(() => { chunksRef.current = chunks; }, [chunks]);
-
-  const stopPolling = () => {
-    if (pollTimerRef.current) { clearInterval(pollTimerRef.current); pollTimerRef.current = null; }
-  };
-
-  const startPolling = (spkId: number) => {
+  // --- polling ---
+  const startPolling = useCallback((spkId: number) => {
     stopPolling();
     pollTimerRef.current = setInterval(async () => {
       try {
         const res = await fetch(`/api/tts/status?minute_id=${minuteId}&speaker_id=${spkId}`);
         if (!res.ok) return;
         const data = await res.json();
-
         if (spkId !== speakerIdRef.current) { stopPolling(); return; }
 
         setGenCompleted(data.completed_chunks || 0);
         setGenTotal(data.total_chunks || 0);
-
-        if (data.chunks?.length > 0) {
-          setChunks(data.chunks);
-        }
 
         if (data.status === 'ready') {
           stopPolling();
@@ -192,52 +156,45 @@ const TTSPlayer = forwardRef<TTSPlayerHandle, TTSPlayerProps>(function TTSPlayer
           setGenTotal(data.total_chunks || data.chunks?.length || 0);
           setGenCompleted(data.total_chunks || data.chunks?.length || 0);
           setIsFullyReady(true);
-          if (!isPlayingRef.current) {
-            setStatus('ready');
-          }
+          if (!isPlayingRef.current) setStatus('ready');
         } else if (data.status === 'failed') {
           stopPolling();
           setErrorMsg(data.error_message || '音声生成に失敗しました');
-          if (!isPlayingRef.current) {
-            setStatus('error');
-          }
+          if (!isPlayingRef.current) setStatus('error');
+        } else if (data.chunks?.length > 0) {
+          setChunks(data.chunks);
         }
-      } catch {
-        // ignore
-      }
-    }, STATUS_POLL_INTERVAL);
-  };
+      } catch { /* ignore */ }
+    }, POLL_MS);
+  }, [minuteId, stopPolling]);
 
+  // --- status check ---
   const checkStatus = async (spkId: number, autoGenerate = false) => {
     try {
       const res = await fetch(`/api/tts/status?minute_id=${minuteId}&speaker_id=${spkId}`);
-      // レスポンス返却時に既に別キャラに切替済みなら無視
       if (spkId !== speakerIdRef.current) return;
       if (!res.ok) { setStatus('not_generated'); return; }
       const data = await res.json();
-      // 再度チェック（awaitの間に変わる可能性）
       if (spkId !== speakerIdRef.current) return;
 
       if (data.status === 'ready' && data.chunks?.length > 0) {
         setChunks(data.chunks);
-        setGenTotal(data.total_chunks || data.chunks.length);
-        setGenCompleted(data.total_chunks || data.chunks.length);
+        setGenTotal(data.chunks.length);
+        setGenCompleted(data.chunks.length);
         setIsFullyReady(true);
         setStatus('ready');
       } else if (data.status === 'generating' || data.status === 'processing') {
         setGenTotal(data.total_chunks || 0);
         setGenCompleted(data.completed_chunks || 0);
         setIsFullyReady(false);
-        if (data.chunks?.length > 0) {
-          setChunks(data.chunks);
-        }
+        if (data.chunks?.length > 0) setChunks(data.chunks);
         setStatus('generating');
         startPolling(spkId);
       } else if (data.status === 'failed') {
         setErrorMsg(data.error_message || '音声生成に失敗しました');
         setStatus('error');
       } else if (autoGenerate && summaryText?.trim()) {
-        generateSingleSpeaker(spkId);
+        triggerGenerate(spkId);
       } else {
         setStatus('not_generated');
       }
@@ -246,8 +203,16 @@ const TTSPlayer = forwardRef<TTSPlayerHandle, TTSPlayerProps>(function TTSPlayer
     }
   };
 
-  const generateSingleSpeaker = async (spkId: number) => {
+  // --- generate (統合: generateAudio + generateSingleSpeaker) ---
+  const triggerGenerate = async (spkId?: number) => {
+    const targetSpk = spkId ?? speakerId;
+    if (!summaryText?.trim()) {
+      setErrorMsg('読み上げるテキストがありません');
+      setStatus('error');
+      return;
+    }
     setStatus('generating');
+    setErrorMsg('');
     setGenCompleted(0);
     setGenTotal(0);
     setIsFullyReady(false);
@@ -257,77 +222,57 @@ const TTSPlayer = forwardRef<TTSPlayerHandle, TTSPlayerProps>(function TTSPlayer
       const res = await fetch('/api/tts/generate', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ minute_id: minuteId, speaker_id: spkId }),
+        body: JSON.stringify({ minute_id: minuteId, speaker_id: targetSpk }),
       });
-      if (spkId !== speakerIdRef.current) return;
-      if (!res.ok) { setStatus('not_generated'); return; }
-      const data = await res.json();
-      if (spkId !== speakerIdRef.current) return;
-      setGenTotal(data.total_chunks || 0);
-      setGenCompleted(data.completed_chunks || 0);
-      if (data.status === 'ready') {
-        await checkStatus(spkId);
-      } else {
-        startPolling(spkId);
-      }
-    } catch {
-      if (spkId === speakerIdRef.current) setStatus('not_generated');
-    }
-  };
-
-  const generateAudio = async () => {
-    if (!summaryText?.trim()) {
-      setErrorMsg('読み上げるテキストがありません');
-      setStatus('error');
-      return;
-    }
-
-    setStatus('generating');
-    setErrorMsg('');
-    setGenCompleted(0);
-    setGenTotal(0);
-    setIsFullyReady(false);
-    setChunks([]);
-
-    try {
-      const res = await fetch('/api/tts/generate', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ minute_id: minuteId, speaker_id: speakerId }),
-      });
-
+      if (targetSpk !== speakerIdRef.current) return;
       if (!res.ok) {
         let errorText = '音声生成に失敗しました';
-        try { const errData = await res.json(); errorText = errData.error || errorText; }
-        catch { errorText = `サーバーエラー (${res.status})`; }
+        try { const d = await res.json(); errorText = d.error || errorText; } catch { /* */ }
         throw new Error(errorText);
       }
-
       const data = await res.json();
+      if (targetSpk !== speakerIdRef.current) return;
       setGenTotal(data.total_chunks || 0);
       setGenCompleted(data.completed_chunks || 0);
-
       if (data.status === 'ready') {
-        await checkStatus(speakerId);
+        await checkStatus(targetSpk);
       } else {
-        startPolling(speakerId);
+        startPolling(targetSpk);
       }
     } catch (e: unknown) {
-      const msg = e instanceof Error ? e.message : '音声生成に失敗しました';
-      setErrorMsg(msg);
+      if (targetSpk !== speakerIdRef.current) return;
+      setErrorMsg(e instanceof Error ? e.message : '音声生成に失敗しました');
       setStatus('error');
     }
   };
 
-  // 次チャンクをプリロード
+  // --- voice change ---
+  const handleVoiceChange = (newId: number) => {
+    if (newId === speakerId) return;
+    setStatus('loading');
+    cleanupAudio();
+    isPlayingRef.current = false;
+    notifyPlay(false);
+    stopPolling();
+    speakerIdRef.current = newId;
+    setSpeakerId(newId);
+    setChunks([]);
+    chunksRef.current = [];
+    notifyProgress(0);
+    setCurrentChunkIndex(0);
+    setIsFullyReady(false);
+    setErrorMsg('');
+    setGenTotal(0);
+    setGenCompleted(0);
+    checkStatus(newId, true);
+  };
+
+  // --- preload & playback ---
   const preloadNext = useCallback((index: number) => {
-    const currentChunks = chunksRef.current;
-    const nextIndex = index + 1;
-    if (nextIndex >= currentChunks.length) {
-      nextAudioRef.current = null;
-      return;
-    }
-    const next = new Audio(currentChunks[nextIndex].audio_url);
+    const cur = chunksRef.current;
+    const ni = index + 1;
+    if (ni >= cur.length) { nextAudioRef.current = null; return; }
+    const next = new Audio(cur[ni].audio_url);
     next.preload = 'auto';
     next.playbackRate = speedRef.current;
     nextAudioRef.current = next;
@@ -335,16 +280,14 @@ const TTSPlayer = forwardRef<TTSPlayerHandle, TTSPlayerProps>(function TTSPlayer
 
   const playChunk = useCallback((index: number) => {
     if (!isPlayingRef.current) return;
+    const cur = chunksRef.current;
 
-    const currentChunks = chunksRef.current;
-
-    if (index >= currentChunks.length) {
-      if (!isPlayingRef.current) return;
+    if (index >= cur.length) {
       isPlayingRef.current = false;
       setStatus('ready');
       setCurrentChunkIndex(0);
-      updateProgress(0);
-      updatePlayState(false);
+      notifyProgress(0);
+      notifyPlay(false);
       return;
     }
 
@@ -352,29 +295,27 @@ const TTSPlayer = forwardRef<TTSPlayerHandle, TTSPlayerProps>(function TTSPlayer
     if (audioRef.current) { audioRef.current.pause(); audioRef.current = null; }
     internalPauseRef.current = false;
 
-    // プリロード済みがあればそれを使う、なければ新規作成
+    // プリロード済みがあれば使う（URLの末尾で比較: ブラウザがsrcを絶対URLに変換するため）
+    const targetUrl = cur[index].audio_url;
     let audio: HTMLAudioElement;
-    if (nextAudioRef.current && nextAudioRef.current.src === currentChunks[index].audio_url) {
+    if (nextAudioRef.current && nextAudioRef.current.src.endsWith(new URL(targetUrl, location.href).pathname)) {
       audio = nextAudioRef.current;
       nextAudioRef.current = null;
     } else {
-      audio = new Audio(currentChunks[index].audio_url);
+      audio = new Audio(targetUrl);
     }
     audio.playbackRate = speedRef.current;
     audioRef.current = audio;
     setCurrentChunkIndex(index);
-
-    // 次チャンクをプリロード開始
     preloadNext(index);
 
-    const totalChunks = currentChunks.length;
-    const baseProgress = (index / totalChunks) * 100;
-    const chunkProgress = (1 / totalChunks) * 100;
+    const total = cur.length;
+    const base = (index / total) * 100;
+    const step = (1 / total) * 100;
 
     audio.ontimeupdate = () => {
       if (audio.duration > 0) {
-        const within = (audio.currentTime / audio.duration) * chunkProgress;
-        updateProgress(Math.min(baseProgress + within, 100));
+        notifyProgress(Math.min(base + (audio.currentTime / audio.duration) * step, 100));
       }
     };
 
@@ -382,27 +323,24 @@ const TTSPlayer = forwardRef<TTSPlayerHandle, TTSPlayerProps>(function TTSPlayer
 
     audio.onended = () => {
       endedNaturally = true;
-      if (isPlayingRef.current) {
-        const latestChunks = chunksRef.current;
-        const nextIndex = index + 1;
-        if (nextIndex < latestChunks.length) {
-          playChunk(nextIndex);
-        } else {
-          isPlayingRef.current = false;
-          setStatus('ready');
-          setCurrentChunkIndex(0);
-          updateProgress(0);
-          updatePlayState(false);
-        }
+      if (!isPlayingRef.current) return;
+      const next = index + 1;
+      if (next < chunksRef.current.length) {
+        playChunk(next);
+      } else {
+        isPlayingRef.current = false;
+        setStatus('ready');
+        setCurrentChunkIndex(0);
+        notifyProgress(0);
+        notifyPlay(false);
       }
     };
 
-    // 他アプリに音声フォーカスを奪われた時（音楽再生等）
     audio.onpause = () => {
       if (!endedNaturally && !internalPauseRef.current && isPlayingRef.current && audioRef.current === audio) {
         isPlayingRef.current = false;
         setStatus('paused');
-        updatePlayState(false);
+        notifyPlay(false);
       }
     };
 
@@ -410,31 +348,35 @@ const TTSPlayer = forwardRef<TTSPlayerHandle, TTSPlayerProps>(function TTSPlayer
       setErrorMsg(`チャンク${index}の再生に失敗しました`);
       setStatus('error');
       isPlayingRef.current = false;
-      updatePlayState(false);
+      notifyPlay(false);
     };
 
     audio.play().catch(() => {
       setErrorMsg('再生を開始できませんでした');
       setStatus('error');
       isPlayingRef.current = false;
-      updatePlayState(false);
+      notifyPlay(false);
     });
-  }, [updatePlayState, updateProgress, preloadNext]);
+  }, [notifyPlay, notifyProgress, preloadNext]);
 
   const handlePlay = () => {
     if (status === 'paused' && audioRef.current) {
-      audioRef.current.play();
+      audioRef.current.play().catch(() => {
+        setErrorMsg('再生を再開できませんでした');
+        setStatus('error');
+        isPlayingRef.current = false;
+        notifyPlay(false);
+      });
       isPlayingRef.current = true;
       setStatus('playing');
-      updatePlayState(true);
+      notifyPlay(true);
       return;
     }
-
     isPlayingRef.current = true;
     setStatus('playing');
     setCurrentChunkIndex(0);
-    updateProgress(0);
-    updatePlayState(true);
+    notifyProgress(0);
+    notifyPlay(true);
     playChunk(0);
   };
 
@@ -444,49 +386,38 @@ const TTSPlayer = forwardRef<TTSPlayerHandle, TTSPlayerProps>(function TTSPlayer
     internalPauseRef.current = false;
     isPlayingRef.current = false;
     setStatus('paused');
-    updatePlayState(false);
+    notifyPlay(false);
   };
 
   const handleStop = () => {
-    internalPauseRef.current = true;
-    if (audioRef.current) { audioRef.current.pause(); audioRef.current.currentTime = 0; audioRef.current = null; }
-    nextAudioRef.current = null;
-    internalPauseRef.current = false;
+    cleanupAudio();
     isPlayingRef.current = false;
     setStatus(isFullyReady ? 'ready' : 'generating');
     setCurrentChunkIndex(0);
-    updateProgress(0);
-    updatePlayState(false);
+    notifyProgress(0);
+    notifyPlay(false);
   };
 
   const handleSeek = (e: React.ChangeEvent<HTMLInputElement>) => {
     const val = parseFloat(e.target.value);
-    const currentChunks = chunksRef.current;
-    if (currentChunks.length === 0) return;
-
-    const targetChunk = Math.min(
-      Math.floor((val / 100) * currentChunks.length),
-      currentChunks.length - 1
-    );
-
-    updateProgress(val);
-    setCurrentChunkIndex(targetChunk);
-
+    const cur = chunksRef.current;
+    if (cur.length === 0) return;
+    const target = Math.min(Math.floor((val / 100) * cur.length), cur.length - 1);
+    notifyProgress(val);
+    setCurrentChunkIndex(target);
     if (status === 'playing' || status === 'paused') {
-      internalPauseRef.current = true;
-      if (audioRef.current) { audioRef.current.pause(); audioRef.current = null; }
-      internalPauseRef.current = false;
+      cleanupAudio();
       isPlayingRef.current = true;
       setStatus('playing');
-      updatePlayState(true);
-      playChunk(targetChunk);
+      notifyPlay(true);
+      playChunk(target);
     }
   };
 
   const selectedVoice = VOICE_OPTIONS.find(v => v.id === speakerId) || VOICE_OPTIONS[2];
 
-  // ===== キャラクター切り替えリスト =====
-  const voiceTabSelector = () => (
+  // --- voice selector ---
+  const voiceSelector = (
     <div className="flex flex-col gap-1.5">
       {VOICE_OPTIONS.map(v => (
         <button
@@ -505,8 +436,7 @@ const TTSPlayer = forwardRef<TTSPlayerHandle, TTSPlayerProps>(function TTSPlayer
     </div>
   );
 
-  // ===== レンダリング =====
-
+  // --- render ---
   if (status === 'loading') {
     return (
       <div className="w-full flex items-center justify-center py-4">
@@ -518,19 +448,18 @@ const TTSPlayer = forwardRef<TTSPlayerHandle, TTSPlayerProps>(function TTSPlayer
   if (status === 'not_generated') {
     return (
       <div className="space-y-2">
-        <button onClick={generateAudio}
+        <button onClick={() => triggerGenerate()}
           className="w-full bg-emerald-50 text-emerald-600 font-bold py-4 rounded-[14px] text-[15px] hover:bg-emerald-100 transition-all active:scale-[0.97] flex items-center justify-center gap-2">
           <Volume2 className="w-5 h-5" />
           音声を生成
         </button>
-        {voiceTabSelector()}
+        {voiceSelector}
       </div>
     );
   }
 
   if (status === 'generating') {
     const pct = genTotal > 0 ? Math.round((genCompleted / genTotal) * 100) : 0;
-
     return (
       <div className="w-full bg-amber-50 rounded-[14px] p-4 space-y-2">
         <div className="flex items-center gap-2 text-amber-600 font-bold text-[15px]">
@@ -548,7 +477,7 @@ const TTSPlayer = forwardRef<TTSPlayerHandle, TTSPlayerProps>(function TTSPlayer
             </div>
           </>
         )}
-        {voiceTabSelector()}
+        {voiceSelector}
       </div>
     );
   }
@@ -559,25 +488,20 @@ const TTSPlayer = forwardRef<TTSPlayerHandle, TTSPlayerProps>(function TTSPlayer
         <div className="w-full bg-red-50 text-red-500 font-medium py-3 px-4 rounded-[14px] text-[13px] text-center">
           {errorMsg || 'エラーが発生しました'}
         </div>
-        <button onClick={generateAudio}
+        <button onClick={() => triggerGenerate()}
           className="w-full bg-slate-100 text-slate-600 font-bold py-3 rounded-[14px] text-[14px] hover:bg-slate-200 transition-all active:scale-[0.97] flex items-center justify-center gap-2">
           <RotateCcw className="w-4 h-4" />
           再試行
         </button>
-        {voiceTabSelector()}
+        {voiceSelector}
       </div>
     );
   }
 
-  // Ready / Playing / Paused
   return (
     <div className="w-full bg-slate-50 rounded-[14px] p-4 space-y-3">
       <input
-        type="range"
-        min={0}
-        max={100}
-        step={0.1}
-        value={progress}
+        type="range" min={0} max={100} step={0.1} value={progress}
         onChange={handleSeek}
         className="w-full h-[6px] appearance-none bg-slate-200 rounded-full cursor-pointer accent-emerald-500
           [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:w-4 [&::-webkit-slider-thumb]:h-4
@@ -627,7 +551,6 @@ const TTSPlayer = forwardRef<TTSPlayerHandle, TTSPlayerProps>(function TTSPlayer
         )}
       </div>
 
-      {/* 速度 */}
       <div className="flex items-center justify-center gap-1.5">
         <span className="text-[12px] text-slate-400 mr-0.5">速度:</span>
         {SPEED_OPTIONS.map((s) => (
@@ -640,8 +563,7 @@ const TTSPlayer = forwardRef<TTSPlayerHandle, TTSPlayerProps>(function TTSPlayer
         ))}
       </div>
 
-      {/* キャラクター切り替え */}
-      {voiceTabSelector()}
+      {voiceSelector}
     </div>
   );
 });
