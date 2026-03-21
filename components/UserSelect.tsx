@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect, useCallback } from 'react';
-import { Loader2, User, RefreshCw, Mic, X, Plus, Trash2, Lock, GripVertical, AlertTriangle, Info } from 'lucide-react';
+import { Loader2, User, RefreshCw, Mic, X, Plus, Trash2, Lock, GripVertical, AlertTriangle, Info, BookMarked, HelpCircle } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 import {
     DndContext,
@@ -138,6 +138,8 @@ export default function UserSelect({ onSelect }: UserSelectProps) {
     const [deleteModal, setDeleteModal] = useState<DeleteModalState | null>(null);
     const [isDragging, setIsDragging] = useState(false);
     const [showCredits, setShowCredits] = useState(false);
+    const [showRulebook, setShowRulebook] = useState(false);
+    const [showHelp, setShowHelp] = useState(false);
 
     // Long-press: 250ms delay before drag starts
     const pointerSensor = useSensor(PointerSensor, {
@@ -444,14 +446,32 @@ export default function UserSelect({ onSelect }: UserSelectProps) {
                 )}
             </div>
 
-            {/* Credits button */}
-            <button
-                onClick={() => setShowCredits(true)}
-                className="mt-4 text-[11px] text-slate-300 hover:text-slate-500 transition-colors flex items-center justify-center gap-1"
-            >
-                <Info className="w-3 h-3" />
-                クレジット
-            </button>
+            {/* Footer buttons */}
+            <div className="mt-4 flex items-center justify-center gap-4">
+                <button
+                    onClick={() => setShowRulebook(true)}
+                    className="text-[11px] text-slate-300 hover:text-slate-500 transition-colors flex items-center gap-1"
+                >
+                    <BookMarked className="w-3 h-3" />
+                    ルルブ
+                </button>
+                <span className="text-slate-200">|</span>
+                <button
+                    onClick={() => setShowHelp(true)}
+                    className="text-[11px] text-slate-300 hover:text-slate-500 transition-colors flex items-center gap-1"
+                >
+                    <HelpCircle className="w-3 h-3" />
+                    ヘルプ
+                </button>
+                <span className="text-slate-200">|</span>
+                <button
+                    onClick={() => setShowCredits(true)}
+                    className="text-[11px] text-slate-300 hover:text-slate-500 transition-colors flex items-center gap-1"
+                >
+                    <Info className="w-3 h-3" />
+                    クレジット
+                </button>
+            </div>
 
             {/* ===== Credits overlay ===== */}
             {showCredits && (
@@ -505,6 +525,153 @@ export default function UserSelect({ onSelect }: UserSelectProps) {
                                     <p>データベース: Supabase</p>
                                 </div>
                             </div>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* ===== Rulebook overlay ===== */}
+            {showRulebook && (
+                <div
+                    className="fixed inset-0 bg-black/50 z-[100] flex items-center justify-center p-5"
+                    onClick={(e) => { if (e.target === e.currentTarget) setShowRulebook(false); }}
+                >
+                    <div className="bg-white rounded-[20px] w-full max-w-[400px] max-h-[80vh] overflow-y-auto shadow-xl">
+                        <div className="px-7 pt-7 pb-4 border-b border-slate-100 flex items-center justify-between">
+                            <h2 className="text-[17px] font-bold text-slate-800 flex items-center gap-2">
+                                <BookMarked className="w-5 h-5 text-violet-500" />
+                                ルルブ
+                            </h2>
+                            <button
+                                onClick={() => setShowRulebook(false)}
+                                className="w-8 h-8 rounded-full bg-slate-100 flex items-center justify-center hover:bg-slate-200 transition-colors"
+                            >
+                                <X className="w-4 h-4 text-slate-500" />
+                            </button>
+                        </div>
+                        <div className="p-7 space-y-6">
+                            <div>
+                                <h3 className="text-[14px] font-bold text-slate-700 mb-3">議事録名の命名規則</h3>
+                                <div className="bg-slate-50 rounded-[12px] p-4 space-y-3">
+                                    <p className="text-[13px] text-slate-600 leading-[1.7]">
+                                        議事録名は今後のナレッジとして活用するため、<br />
+                                        以下のフォーマットで入力してください。
+                                    </p>
+                                    <div className="bg-white rounded-[8px] border border-slate-200 px-4 py-3">
+                                        <p className="text-[12px] text-slate-400 mb-1">フォーマット</p>
+                                        <p className="text-[14px] font-bold text-violet-600">顧客名 / タイトル</p>
+                                    </div>
+                                    <div className="space-y-2">
+                                        <p className="text-[12px] text-slate-400">入力例:</p>
+                                        <div className="space-y-1.5">
+                                            <p className="text-[13px] text-slate-600 bg-white rounded-[6px] px-3 py-2 border border-slate-100">ABC商事 / 月次定例会</p>
+                                            <p className="text-[13px] text-slate-600 bg-white rounded-[6px] px-3 py-2 border border-slate-100">田中建設 / 現場打合せ 3/22</p>
+                                            <p className="text-[13px] text-slate-600 bg-white rounded-[6px] px-3 py-2 border border-slate-100">社内 / 営業戦略MTG</p>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div>
+                                <h3 className="text-[14px] font-bold text-slate-700 mb-3">音声生成について</h3>
+                                <div className="bg-amber-50 rounded-[12px] p-4">
+                                    <p className="text-[13px] text-amber-700 leading-[1.7]">
+                                        議事録を保存すると、読み上げ音声の生成が自動で開始されます。
+                                        生成中（「生成中...」表示）は議事録の編集を控えてください。
+                                        内容を変更すると音声との整合性がなくなります。
+                                    </p>
+                                </div>
+                            </div>
+
+                            <div>
+                                <h3 className="text-[14px] font-bold text-slate-700 mb-3">用語辞書</h3>
+                                <div className="bg-slate-50 rounded-[12px] p-4">
+                                    <p className="text-[13px] text-slate-600 leading-[1.7]">
+                                        ヘッダーの <span className="inline-flex items-center"><BookMarked className="w-3 h-3 mx-0.5" /></span> アイコンから用語辞書を開けます。
+                                        音声認識で誤変換されやすい固有名詞（社名・人名・専門用語）を登録しておくと、
+                                        議事録生成時に自動で正しい表記に置換されます。
+                                    </p>
+                                </div>
+                            </div>
+
+                            <div>
+                                <h3 className="text-[14px] font-bold text-slate-700 mb-3">キャラクターボイス</h3>
+                                <div className="bg-slate-50 rounded-[12px] p-4">
+                                    <p className="text-[13px] text-slate-600 leading-[1.7]">
+                                        読み上げ音声は4種類のキャラクターから選べます。
+                                        再生画面の「キャラクターを変更」から切り替えてください。
+                                        初回選択時は音声が生成されるまで少し時間がかかります。
+                                    </p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* ===== Help overlay ===== */}
+            {showHelp && (
+                <div
+                    className="fixed inset-0 bg-black/50 z-[100] flex items-center justify-center p-5"
+                    onClick={(e) => { if (e.target === e.currentTarget) setShowHelp(false); }}
+                >
+                    <div className="bg-white rounded-[20px] w-full max-w-[400px] max-h-[80vh] overflow-y-auto shadow-xl">
+                        <div className="px-7 pt-7 pb-4 border-b border-slate-100 flex items-center justify-between">
+                            <h2 className="text-[17px] font-bold text-slate-800 flex items-center gap-2">
+                                <HelpCircle className="w-5 h-5 text-violet-500" />
+                                ヘルプ
+                            </h2>
+                            <button
+                                onClick={() => setShowHelp(false)}
+                                className="w-8 h-8 rounded-full bg-slate-100 flex items-center justify-center hover:bg-slate-200 transition-colors"
+                            >
+                                <X className="w-4 h-4 text-slate-500" />
+                            </button>
+                        </div>
+                        <div className="p-7 space-y-5">
+                            {[
+                                {
+                                    q: '録音が途中で止まる',
+                                    a: 'ブラウザのマイク許可を確認してください。また、画面をロックしたり他のアプリに切り替えると録音が中断されることがあります。録音中は画面を開いたままにしてください。',
+                                },
+                                {
+                                    q: '議事録の内容がおかしい',
+                                    a: '音声が小さい・雑音が多いと認識精度が下がります。マイクに近い位置で録音してください。また、用語辞書に固有名詞を登録しておくと、誤変換が減ります。',
+                                },
+                                {
+                                    q: '音声が再生できない',
+                                    a: '音声は保存後にサーバーで自動生成されます。「生成中...」の表示が消えるまでお待ちください。長い議事録は数分かかることがあります。',
+                                },
+                                {
+                                    q: 'キャラクターを変えたら「生成中」になった',
+                                    a: '初めて選んだキャラクターの音声はその場で生成されます。しばらくお待ちください。一度生成された音声はキャッシュされるので、次回からは即再生できます。',
+                                },
+                                {
+                                    q: '議事録を編集したら音声はどうなる？',
+                                    a: '編集後の内容で新しい音声が自動生成されます。編集前の音声は古いテキストに紐づいているため、新しい音声の生成が完了するまでお待ちください。',
+                                },
+                                {
+                                    q: 'PDFに出力したい',
+                                    a: '議事録の詳細画面を開き、「PDFで出力」ボタンを押してください。ブラウザのダウンロードフォルダに保存されます。',
+                                },
+                                {
+                                    q: '担当者を並び替えたい',
+                                    a: 'ユーザー選択画面で、名前の左にあるグリップ（⋮⋮）を長押ししてドラッグすると並び替えられます。',
+                                },
+                                {
+                                    q: 'スマホのホーム画面に追加したい',
+                                    a: 'ブラウザの共有メニュー（iOS: Safari の共有ボタン → ホーム画面に追加 / Android: Chrome のメニュー → ホーム画面に追加）から追加できます。',
+                                },
+                            ].map((item, i) => (
+                                <div key={i} className="bg-slate-50 rounded-[12px] overflow-hidden">
+                                    <div className="px-4 py-3 bg-slate-100">
+                                        <p className="text-[13px] font-bold text-slate-700">Q. {item.q}</p>
+                                    </div>
+                                    <div className="px-4 py-3">
+                                        <p className="text-[12px] text-slate-600 leading-[1.7]">A. {item.a}</p>
+                                    </div>
+                                </div>
+                            ))}
                         </div>
                     </div>
                 </div>
