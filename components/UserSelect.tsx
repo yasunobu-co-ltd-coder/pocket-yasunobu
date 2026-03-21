@@ -550,16 +550,30 @@ export default function UserSelect({ onSelect }: UserSelectProps) {
                             </button>
                         </div>
                         <div className="p-7 space-y-6">
+                            {/* ── 最重要: 命名規則 ── */}
                             <div>
-                                <h3 className="text-[14px] font-bold text-slate-700 mb-3">議事録名の命名規則</h3>
-                                <div className="bg-slate-50 rounded-[12px] p-4 space-y-3">
-                                    <p className="text-[13px] text-slate-600 leading-[1.7]">
-                                        議事録名は今後のナレッジとして活用するため、<br />
-                                        以下のフォーマットで入力してください。
+                                <div className="flex items-center gap-2 mb-3">
+                                    <span className="bg-red-500 text-white text-[10px] font-bold px-2 py-0.5 rounded-full">最重要</span>
+                                    <h3 className="text-[14px] font-bold text-slate-700">議事録名の命名規則</h3>
+                                </div>
+                                <div className="bg-red-50 border border-red-200 rounded-[12px] p-4 space-y-3">
+                                    <p className="text-[13px] text-red-700 leading-[1.7] font-medium">
+                                        議事録名は将来ナレッジデータベースの顧客リスト作成に直結します。
+                                        命名規則を守らないとデータ整備時に大きな手戻りが発生するため、
+                                        <span className="font-bold underline">必ず以下のルールに従ってください。</span>
                                     </p>
-                                    <div className="bg-white rounded-[8px] border border-slate-200 px-4 py-3">
-                                        <p className="text-[12px] text-slate-400 mb-1">フォーマット</p>
-                                        <p className="text-[14px] font-bold text-violet-600">顧客名 / タイトル</p>
+                                    <div className="bg-white rounded-[8px] border-2 border-red-300 px-4 py-3">
+                                        <p className="text-[12px] text-red-400 mb-1">フォーマット（厳守）</p>
+                                        <p className="text-[15px] font-bold text-red-600">顧客名 / タイトル・日時など</p>
+                                    </div>
+                                    <div className="bg-white rounded-[8px] border border-slate-200 px-4 py-3 space-y-2">
+                                        <p className="text-[12px] text-slate-500 font-bold">ルール詳細:</p>
+                                        <ul className="text-[12px] text-slate-600 leading-[1.8] space-y-1 list-none">
+                                            <li>・顧客名は<span className="font-bold text-slate-800">社内で統一された表記</span>を使用すること</li>
+                                            <li>・顧客名の後に<span className="font-bold text-slate-800">スペースまたはスラッシュ（/）</span>で区切る</li>
+                                            <li>・区切りの後に会議の内容や日時を記載する</li>
+                                            <li>・「テスト」「あああ」等の仮名で保存しない</li>
+                                        </ul>
                                     </div>
                                     <div className="space-y-2">
                                         <p className="text-[12px] text-slate-400">入力例:</p>
@@ -569,13 +583,62 @@ export default function UserSelect({ onSelect }: UserSelectProps) {
                                             <p className="text-[13px] text-slate-600 bg-white rounded-[6px] px-3 py-2 border border-slate-100">社内 / 営業戦略MTG</p>
                                         </div>
                                     </div>
+                                    <div className="space-y-2">
+                                        <p className="text-[12px] text-red-400 font-bold">NG例:</p>
+                                        <div className="space-y-1.5">
+                                            <p className="text-[13px] text-red-400 bg-white rounded-[6px] px-3 py-2 border border-red-100 line-through">打合せメモ</p>
+                                            <p className="text-[13px] text-red-400 bg-white rounded-[6px] px-3 py-2 border border-red-100 line-through">3月22日の会議</p>
+                                            <p className="text-[13px] text-red-400 bg-white rounded-[6px] px-3 py-2 border border-red-100 line-through">テスト</p>
+                                        </div>
+                                        <p className="text-[11px] text-red-400 leading-[1.6]">
+                                            ※ 顧客名がないと、どの顧客の議事録か後から判別できません
+                                        </p>
+                                    </div>
                                 </div>
                             </div>
 
+                            {/* ── 重要: 担当者の確認 ── */}
+                            <div>
+                                <div className="flex items-center gap-2 mb-3">
+                                    <span className="bg-amber-500 text-white text-[10px] font-bold px-2 py-0.5 rounded-full">重要</span>
+                                    <h3 className="text-[14px] font-bold text-slate-700">担当者の確認</h3>
+                                </div>
+                                <div className="bg-amber-50 border border-amber-200 rounded-[12px] p-4">
+                                    <p className="text-[13px] text-amber-700 leading-[1.7]">
+                                        録音を開始する前に、<span className="font-bold">自分の名前で選択されているか</span>必ず確認してください。
+                                        別の担当者の名前のまま保存すると、その人の議事録一覧に紛れ込みます。
+                                        共有端末を使用している場合は特に注意してください。
+                                    </p>
+                                </div>
+                            </div>
+
+                            {/* ── 重要: 録音のバックアップ ── */}
+                            <div>
+                                <div className="flex items-center gap-2 mb-3">
+                                    <span className="bg-amber-500 text-white text-[10px] font-bold px-2 py-0.5 rounded-full">重要</span>
+                                    <h3 className="text-[14px] font-bold text-slate-700">録音のバックアップ</h3>
+                                </div>
+                                <div className="bg-amber-50 border border-amber-200 rounded-[12px] p-4 space-y-2">
+                                    <p className="text-[13px] text-amber-700 leading-[1.7]">
+                                        ブラウザでの録音は、端末のスリープ・通知・他アプリへの切り替え・通信状況など
+                                        様々な要因で<span className="font-bold">途中で途切れる可能性</span>があります。
+                                        特に長時間の会議では注意が必要です。
+                                    </p>
+                                    <p className="text-[13px] text-amber-700 leading-[1.7] font-bold">
+                                        必ずボイスレコーダー等で別途バックアップ録音を取ってください。
+                                    </p>
+                                    <p className="text-[12px] text-amber-600 leading-[1.6]">
+                                        万が一録音が切れた場合でも、音声ファイルを後からアップロードして議事録を生成できます。
+                                        バックアップの有無は自己責任となります。
+                                    </p>
+                                </div>
+                            </div>
+
+                            {/* ── 音声生成 ── */}
                             <div>
                                 <h3 className="text-[14px] font-bold text-slate-700 mb-3">音声生成について</h3>
-                                <div className="bg-amber-50 rounded-[12px] p-4">
-                                    <p className="text-[13px] text-amber-700 leading-[1.7]">
+                                <div className="bg-slate-50 rounded-[12px] p-4">
+                                    <p className="text-[13px] text-slate-600 leading-[1.7]">
                                         議事録を保存すると、読み上げ音声の生成が自動で開始されます。
                                         生成中（「生成中...」表示）は議事録の編集を控えてください。
                                         内容を変更すると音声との整合性がなくなります。
@@ -583,6 +646,7 @@ export default function UserSelect({ onSelect }: UserSelectProps) {
                                 </div>
                             </div>
 
+                            {/* ── 用語辞書 ── */}
                             <div>
                                 <h3 className="text-[14px] font-bold text-slate-700 mb-3">用語辞書</h3>
                                 <div className="bg-slate-50 rounded-[12px] p-4">
@@ -594,6 +658,7 @@ export default function UserSelect({ onSelect }: UserSelectProps) {
                                 </div>
                             </div>
 
+                            {/* ── キャラクターボイス ── */}
                             <div>
                                 <h3 className="text-[14px] font-bold text-slate-700 mb-3">キャラクターボイス</h3>
                                 <div className="bg-slate-50 rounded-[12px] p-4">
