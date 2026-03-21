@@ -442,6 +442,11 @@ export default function HistoryList({ userId, userName, refreshTrigger, initialS
                                         {/* TTS Player */}
                                         <TTSPlayer minuteId={selectedRecord.id} summaryText={selectedRecord.summary} />
 
+                                        <button onClick={() => startEdit(selectedRecord)}
+                                            className="w-full bg-slate-100 text-slate-600 font-bold py-4 rounded-[14px] text-[15px] hover:bg-violet-50 hover:text-violet-600 transition-all active:scale-[0.97]">
+                                            編集する
+                                        </button>
+
                                         <button
                                             onClick={async () => {
                                                 if (!confirm('この議事録をデータベースから完全に削除します。\n関連する音声データも削除されます。\nこの操作は取り消せません。\n\n本当に削除しますか？')) return;

@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect, useMemo, useRef } from 'react';
-import { Mic, LogOut, Home, List, Search, ChevronRight, FileText, X, User, Download, Save, Loader2, Trash2, BookOpen, Play, Pause, Square } from 'lucide-react';
+import { Mic, LogOut, Home, List, Search, ChevronRight, X, User, Download, Loader2, BookOpen, Play, Pause, Square } from 'lucide-react';
 import UserSelect, { UserData } from '@/components/UserSelect';
 import HistoryList from '@/components/HistoryList';
 import VoiceRecorder from '@/components/VoiceRecorder';
@@ -38,11 +38,6 @@ export default function Page() {
   // Term dictionary modal
   const [isDictOpen, setIsDictOpen] = useState(false);
 
-  // Home modal edit state
-  const [isHomeEditing, setIsHomeEditing] = useState(false);
-  const [homeEditClientName, setHomeEditClientName] = useState('');
-  const [homeEditSummary, setHomeEditSummary] = useState('');
-  const [isHomeSaving, setIsHomeSaving] = useState(false);
   const [isHomeDeleting, setIsHomeDeleting] = useState(false);
 
   // バックグラウンド再生
@@ -58,7 +53,6 @@ export default function Page() {
       setIsModalVisible(false);
     } else {
       setSelectedHomeRecord(null);
-      setIsHomeEditing(false);
       setIsModalVisible(true);
     }
   };
@@ -69,7 +63,6 @@ export default function Page() {
     }
     setSelectedHomeRecord(record);
     setIsModalVisible(true);
-    setIsHomeEditing(false);
   };
 
   const stopBgPlayback = () => {
@@ -339,98 +332,42 @@ export default function Page() {
                 作成: {formatTimestamp(selectedHomeRecord.created_at)}
               </div>
 
-              {isHomeEditing ? (
-                <>
-                  <div>
-                    <label htmlFor="home-edit-client-name" className="block text-[13px] font-bold text-slate-400 uppercase tracking-[0.5px] mb-3">会議名</label>
-                    <input id="home-edit-client-name" name="home-client-name" type="text" value={homeEditClientName} onChange={(e) => setHomeEditClientName(e.target.value)}
-                      className="w-full bg-slate-50 border border-slate-200 rounded-[12px] px-5 py-4 text-[16px] text-slate-700 focus:border-violet-400 focus:bg-white focus:shadow-[0_0_0_4px_rgba(124,58,237,0.1)] outline-none transition-all" />
-                  </div>
-                  <div>
-                    <label htmlFor="home-edit-summary" className="block text-[13px] font-bold text-slate-400 uppercase tracking-[0.5px] mb-3">内容</label>
-                    <textarea id="home-edit-summary" name="home-summary" value={homeEditSummary} onChange={(e) => setHomeEditSummary(e.target.value)} rows={8}
-                      className="w-full bg-slate-50 border border-slate-200 rounded-[12px] px-5 py-4 text-[15px] text-slate-700 leading-[1.7] focus:border-violet-400 focus:bg-white focus:shadow-[0_0_0_4px_rgba(124,58,237,0.1)] outline-none resize-none transition-all" />
-                  </div>
-                  <div className="flex gap-3 pt-2">
-                    <button onClick={() => setIsHomeEditing(false)}
-                      className="flex-1 bg-slate-100 text-slate-600 font-bold py-4 rounded-[14px] text-[15px] transition-colors hover:bg-slate-200">
-                      キャンセル
-                    </button>
-                    <button onClick={async () => {
-                      setIsHomeSaving(true);
-                      try {
-                        const { error: updateError } = await supabase
-                          .from('pocket-yasunobu')
-                          .update({ client_name: homeEditClientName, summary: homeEditSummary })
-                          .eq('id', selectedHomeRecord.id);
-                        if (updateError) throw updateError;
-                        const updated = { ...selectedHomeRecord, client_name: homeEditClientName, summary: homeEditSummary };
-                        setHomeRecords(homeRecords.map(r => r.id === selectedHomeRecord.id ? updated : r));
-                        setSelectedHomeRecord(updated);
-                        setIsHomeEditing(false);
-                      } catch (e: unknown) {
-                        const msg = e instanceof Error ? e.message : '保存エラー';
-                        alert('保存失敗: ' + msg);
-                      } finally {
-                        setIsHomeSaving(false);
-                      }
-                    }} disabled={isHomeSaving}
-                      className="flex-1 text-white font-bold py-4 rounded-[14px] text-[15px] transition-transform active:scale-[0.97] flex items-center justify-center gap-2 disabled:opacity-50"
-                      style={{ background: 'linear-gradient(135deg, #7c3aed 0%, #6d28d9 100%)' }}>
-                      {isHomeSaving ? <Loader2 className="w-5 h-5 animate-spin" /> : <Save className="w-5 h-5" />}
-                      保存
-                    </button>
-                  </div>
-                </>
-              ) : (
-                <>
-                  <div>
-                    <span className="block text-[13px] font-bold text-slate-400 uppercase tracking-[0.5px] mb-2">会議名</span>
-                    <p className="text-[19px] font-bold text-slate-800">{selectedHomeRecord.client_name || '名称なし'}</p>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <User className="w-4 h-4 text-slate-400" />
-                    <span className="text-[14px] text-slate-500">{selectedHomeRecord.user?.name ?? '不明'}</span>
-                  </div>
-                  <div>
-                    <span className="block text-[13px] font-bold text-slate-400 uppercase tracking-[0.5px] mb-3">内容</span>
-                    <p className="text-[15px] text-slate-600 leading-[1.8] whitespace-pre-wrap">{selectedHomeRecord.summary}</p>
-                  </div>
+              <div>
+                <span className="block text-[13px] font-bold text-slate-400 uppercase tracking-[0.5px] mb-2">会議名</span>
+                <p className="text-[19px] font-bold text-slate-800">{selectedHomeRecord.client_name || '名称なし'}</p>
+              </div>
+              <div className="flex items-center gap-2">
+                <User className="w-4 h-4 text-slate-400" />
+                <span className="text-[14px] text-slate-500">{selectedHomeRecord.user?.name ?? '不明'}</span>
+              </div>
+              <div>
+                <span className="block text-[13px] font-bold text-slate-400 uppercase tracking-[0.5px] mb-3">内容</span>
+                <p className="text-[15px] text-slate-600 leading-[1.8] whitespace-pre-wrap">{selectedHomeRecord.summary}</p>
+              </div>
 
-                  {/* PDF / Edit buttons */}
-                  <div className="pt-2 space-y-3">
-                    <button
-                      onClick={() => generateMinutesPdf({
-                        meetingName: selectedHomeRecord.client_name || '',
-                        createdAt: selectedHomeRecord.created_at,
-                        creatorName: selectedHomeRecord.user?.name,
-                        summary: selectedHomeRecord.summary,
-                      })}
-                      className="w-full bg-violet-50 text-violet-600 font-bold py-4 rounded-[14px] text-[15px] hover:bg-violet-100 transition-all active:scale-[0.97] flex items-center justify-center gap-2">
-                      <Download className="w-5 h-5" />
-                      PDFで出力
-                    </button>
-                    {/* TTS Player */}
-                    <TTSPlayer
-                      ref={ttsRef}
-                      minuteId={selectedHomeRecord.id}
-                      summaryText={selectedHomeRecord.summary}
-                      clientName={selectedHomeRecord.client_name}
-                      onPlaybackChange={setIsAudioPlaying}
-                      onProgressChange={setBgProgress}
-                    />
-
-                    <button onClick={() => {
-                      setIsHomeEditing(true);
-                      setHomeEditClientName(selectedHomeRecord.client_name || '');
-                      setHomeEditSummary(selectedHomeRecord.summary || '');
-                    }}
-                      className="w-full bg-slate-100 text-slate-600 font-bold py-4 rounded-[14px] text-[15px] hover:bg-violet-50 hover:text-violet-600 transition-all active:scale-[0.97]">
-                      編集する
-                    </button>
-                  </div>
-                </>
-              )}
+              {/* PDF / TTS buttons */}
+              <div className="pt-2 space-y-3">
+                <button
+                  onClick={() => generateMinutesPdf({
+                    meetingName: selectedHomeRecord.client_name || '',
+                    createdAt: selectedHomeRecord.created_at,
+                    creatorName: selectedHomeRecord.user?.name,
+                    summary: selectedHomeRecord.summary,
+                  })}
+                  className="w-full bg-violet-50 text-violet-600 font-bold py-4 rounded-[14px] text-[15px] hover:bg-violet-100 transition-all active:scale-[0.97] flex items-center justify-center gap-2">
+                  <Download className="w-5 h-5" />
+                  PDFで出力
+                </button>
+                {/* TTS Player */}
+                <TTSPlayer
+                  ref={ttsRef}
+                  minuteId={selectedHomeRecord.id}
+                  summaryText={selectedHomeRecord.summary}
+                  clientName={selectedHomeRecord.client_name}
+                  onPlaybackChange={setIsAudioPlaying}
+                  onProgressChange={setBgProgress}
+                />
+              </div>
             </div>
           </div>
         </div>
