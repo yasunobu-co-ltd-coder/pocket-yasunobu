@@ -63,7 +63,10 @@ const TTSPlayer = forwardRef<TTSPlayerHandle, TTSPlayerProps>(function TTSPlayer
   // 単一Audio要素を使い回す（モバイル対応の核心）
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const isPlayingRef = useRef(false);
-  const isSwitchingChunkRef = useRef(false); // チャンク切替中フラグ（onpause誤発火防止）
+  // チャンク切替中フラグ: play()のPromise解決まで true を維持する
+  const isSwitchingRef = useRef(false);
+  // 自然終了フラグ: onpause→onended の順序問題を防ぐ
+  const isEndedRef = useRef(false);
   const pollTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const speedRef = useRef(speed);
   const chunksRef = useRef<AudioChunk[]>([]);
@@ -106,36 +109,34 @@ const TTSPlayer = forwardRef<TTSPlayerHandle, TTSPlayerProps>(function TTSPlayer
     if (pollTimerRef.current) { clearInterval(pollTimerRef.current); pollTimerRef.current = null; }
   }, []);
 
-  // Audio要素を初期化（破棄せず停止のみ）
   const resetAudio = useCallback(() => {
-    isSwitchingChunkRef.current = true;
+    isSwitchingRef.current = true;
     if (audioRef.current) {
       audioRef.current.pause();
       audioRef.current.removeAttribute('src');
-      audioRef.current.load(); // リソース解放
+      audioRef.current.load();
     }
-    isSwitchingChunkRef.current = false;
+    isSwitchingRef.current = false;
   }, []);
 
-  // Audio要素の完全破棄（キャラ変更時のみ）
   const destroyAudio = useCallback(() => {
-    isSwitchingChunkRef.current = true;
+    isSwitchingRef.current = true;
     if (audioRef.current) {
       audioRef.current.pause();
       audioRef.current.onended = null;
       audioRef.current.onpause = null;
       audioRef.current.ontimeupdate = null;
       audioRef.current.onerror = null;
+      audioRef.current.oncanplaythrough = null;
       audioRef.current.removeAttribute('src');
       audioRef.current.load();
       audioRef.current = null;
     }
-    isSwitchingChunkRef.current = false;
+    isSwitchingRef.current = false;
   }, []);
 
   useEffect(() => { return () => { stopPolling(); destroyAudio(); }; }, [stopPolling, destroyAudio]);
 
-  // --- Audio要素の取得または作成 ---
   const getOrCreateAudio = useCallback((): HTMLAudioElement => {
     if (audioRef.current) return audioRef.current;
     const audio = new Audio();
@@ -279,7 +280,7 @@ const TTSPlayer = forwardRef<TTSPlayerHandle, TTSPlayerProps>(function TTSPlayer
   const handleVoiceChange = (newId: number) => {
     if (newId === speakerId) return;
     setStatus('loading');
-    destroyAudio(); // キャラ変更時のみ Audio 要素を破棄
+    destroyAudio();
     isPlayingRef.current = false;
     notifyPlay(false);
     stopPolling();
@@ -302,41 +303,43 @@ const TTSPlayer = forwardRef<TTSPlayerHandle, TTSPlayerProps>(function TTSPlayer
     const cur = chunksRef.current;
     const ni = index + 1;
     if (ni >= cur.length) return;
-    // fetch でキャッシュに乗せるだけ（Audio要素は作らない）
     fetch(cur[ni].audio_url).catch(() => {});
   }, []);
 
-  // --- 単一Audio要素でチャンクを再生 ---
+  // --- 再生完了処理 ---
+  const finishPlayback = useCallback(() => {
+    isPlayingRef.current = false;
+    setStatus('ready');
+    setCurrentChunkIndex(0);
+    chunkIndexRef.current = 0;
+    notifyProgress(0);
+    notifyPlay(false);
+  }, [notifyProgress, notifyPlay]);
+
+  // --- 単一Audio要素でチャンクを再生（モバイル対応版） ---
   const playChunk = useCallback((index: number) => {
     if (!isPlayingRef.current) return;
     const cur = chunksRef.current;
 
     if (index >= cur.length) {
-      // 全チャンク再生完了
-      isPlayingRef.current = false;
-      setStatus('ready');
-      setCurrentChunkIndex(0);
-      chunkIndexRef.current = 0;
-      notifyProgress(0);
-      notifyPlay(false);
+      finishPlayback();
       return;
     }
 
     const audio = getOrCreateAudio();
     const targetUrl = cur[index].audio_url;
 
-    isSwitchingChunkRef.current = true;
+    // ── フラグセット: play() の Promise 解決まで true を維持 ──
+    isSwitchingRef.current = true;
+    isEndedRef.current = false;
     chunkIndexRef.current = index;
     setCurrentChunkIndex(index);
-
-    // 同じ Audio 要素の src を切り替え
-    audio.src = targetUrl;
-    audio.playbackRate = speedRef.current;
 
     const total = cur.length;
     const base = (index / total) * 100;
     const step = (1 / total) * 100;
 
+    // ── イベントハンドラを先に設定 ──
     audio.ontimeupdate = () => {
       if (audio.duration > 0) {
         notifyProgress(Math.min(base + (audio.currentTime / audio.duration) * step, 100));
@@ -344,53 +347,71 @@ const TTSPlayer = forwardRef<TTSPlayerHandle, TTSPlayerProps>(function TTSPlayer
     };
 
     audio.onended = () => {
+      isEndedRef.current = true; // 自然終了マーク（onpause対策）
       if (!isPlayingRef.current) return;
       const next = chunkIndexRef.current + 1;
       if (next < chunksRef.current.length) {
+        // ★ onended コールバック内で同期的に次チャンクへ遷移
+        //    iOS Safari でジェスチャー連鎖を維持するために重要
         playChunk(next);
       } else {
-        isPlayingRef.current = false;
-        setStatus('ready');
-        setCurrentChunkIndex(0);
-        chunkIndexRef.current = 0;
-        notifyProgress(0);
-        notifyPlay(false);
+        finishPlayback();
       }
     };
 
     audio.onpause = () => {
-      // チャンク切替中・再生停止操作中の onpause は無視
-      if (isSwitchingChunkRef.current) return;
+      // ガード1: チャンク切替中の src 変更による onpause → 無視
+      if (isSwitchingRef.current) return;
+      // ガード2: 自然終了による pause→ended 順序問題 → 無視
+      if (isEndedRef.current) return;
+      // ガード3: handlePause/handleStop による意図的な停止 → 既に処理済み
       if (!isPlayingRef.current) return;
-      // 外部要因（通知・他アプリ・OS）による一時停止
+      // ── ここに到達 = 外部要因（通知・他アプリ・OS）による一時停止 ──
       isPlayingRef.current = false;
       setStatus('paused');
       notifyPlay(false);
     };
 
     audio.onerror = () => {
+      isSwitchingRef.current = false;
       setErrorMsg(`チャンク${index + 1}の再生に失敗しました`);
       setStatus('error');
       isPlayingRef.current = false;
       notifyPlay(false);
     };
 
+    // ── src を変更し、ロード完了を待ってから再生 ──
+    audio.oncanplaythrough = () => {
+      audio.oncanplaythrough = null; // 一度だけ
+      if (!isPlayingRef.current) {
+        isSwitchingRef.current = false;
+        return;
+      }
+      audio.play()
+        .then(() => {
+          // ★ play() 成功後にフラグ解除（onpause 誤発火を完全に防ぐ）
+          isSwitchingRef.current = false;
+        })
+        .catch(() => {
+          isSwitchingRef.current = false;
+          setErrorMsg('再生を開始できませんでした');
+          setStatus('error');
+          isPlayingRef.current = false;
+          notifyPlay(false);
+        });
+    };
+
+    audio.src = targetUrl;
+    audio.playbackRate = speedRef.current;
+    audio.load(); // 明示的にロード開始
+
     // 次チャンクをキャッシュにプリフェッチ
     prefetchNext(index);
-
-    isSwitchingChunkRef.current = false;
-
-    audio.play().catch(() => {
-      setErrorMsg('再生を開始できませんでした');
-      setStatus('error');
-      isPlayingRef.current = false;
-      notifyPlay(false);
-    });
-  }, [notifyPlay, notifyProgress, getOrCreateAudio, prefetchNext]);
+  }, [notifyPlay, notifyProgress, getOrCreateAudio, prefetchNext, finishPlayback]);
 
   const handlePlay = () => {
-    if (status === 'paused' && audioRef.current) {
-      // 一時停止からの再開: 同じAudio要素でresume
+    if (status === 'paused' && audioRef.current && audioRef.current.src) {
+      // 一時停止からの再開: src はそのまま、resume するだけ
       audioRef.current.play().catch(() => {
         setErrorMsg('再生を再開できませんでした');
         setStatus('error');
@@ -402,7 +423,7 @@ const TTSPlayer = forwardRef<TTSPlayerHandle, TTSPlayerProps>(function TTSPlayer
       notifyPlay(true);
       return;
     }
-    // 最初から再生: ユーザージェスチャーの中でAudio要素を確保
+    // 最初から再生: ユーザージェスチャー内で Audio 要素を確保
     getOrCreateAudio();
     isPlayingRef.current = true;
     setStatus('playing');
@@ -414,9 +435,9 @@ const TTSPlayer = forwardRef<TTSPlayerHandle, TTSPlayerProps>(function TTSPlayer
   };
 
   const handlePause = () => {
-    isSwitchingChunkRef.current = true;
+    isSwitchingRef.current = true; // onpause 誤発火防止
     if (audioRef.current) audioRef.current.pause();
-    isSwitchingChunkRef.current = false;
+    isSwitchingRef.current = false;
     isPlayingRef.current = false;
     setStatus('paused');
     notifyPlay(false);
