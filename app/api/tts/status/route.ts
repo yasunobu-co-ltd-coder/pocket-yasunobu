@@ -37,10 +37,12 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ status: 'not_generated', message: '音声データがありません' });
     }
 
+    // audio_url が NULL のチャンクは除外（未生成・生成失敗のゴミデータ防止）
     const { data: chunks } = await supabase
       .from('minutes_audio_chunks')
       .select('id, chunk_index, chunk_text, audio_url, duration_sec')
       .eq('audio_id', audio.id)
+      .not('audio_url', 'is', null)
       .order('chunk_index', { ascending: true });
 
     return NextResponse.json({
