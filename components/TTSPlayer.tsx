@@ -60,13 +60,14 @@ const TTSPlayer = forwardRef<TTSPlayerHandle, TTSPlayerProps>(function TTSPlayer
   const [genCompleted, setGenCompleted] = useState(0);
   const [isFullyReady, setIsFullyReady] = useState(false);
 
+  // 単一Audio要素を使い回す（モバイル対応の核心）
   const audioRef = useRef<HTMLAudioElement | null>(null);
-  const nextAudioRef = useRef<HTMLAudioElement | null>(null);
   const isPlayingRef = useRef(false);
-  const internalPauseRef = useRef(false);
+  const isSwitchingChunkRef = useRef(false); // チャンク切替中フラグ（onpause誤発火防止）
   const pollTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const speedRef = useRef(speed);
   const chunksRef = useRef<AudioChunk[]>([]);
+  const chunkIndexRef = useRef(0);
   const speakerIdRef = useRef(speakerId);
 
   useImperativeHandle(ref, () => ({
@@ -80,7 +81,6 @@ const TTSPlayer = forwardRef<TTSPlayerHandle, TTSPlayerProps>(function TTSPlayer
   useEffect(() => {
     speedRef.current = speed;
     if (audioRef.current) audioRef.current.playbackRate = speed;
-    if (nextAudioRef.current) nextAudioRef.current.playbackRate = speed;
     localStorage.setItem('tts-speed', String(speed));
   }, [speed]);
   useEffect(() => {
@@ -106,14 +106,43 @@ const TTSPlayer = forwardRef<TTSPlayerHandle, TTSPlayerProps>(function TTSPlayer
     if (pollTimerRef.current) { clearInterval(pollTimerRef.current); pollTimerRef.current = null; }
   }, []);
 
-  const cleanupAudio = useCallback(() => {
-    internalPauseRef.current = true;
-    if (audioRef.current) { audioRef.current.pause(); audioRef.current.currentTime = 0; audioRef.current = null; }
-    nextAudioRef.current = null;
-    internalPauseRef.current = false;
+  // Audio要素を初期化（破棄せず停止のみ）
+  const resetAudio = useCallback(() => {
+    isSwitchingChunkRef.current = true;
+    if (audioRef.current) {
+      audioRef.current.pause();
+      audioRef.current.removeAttribute('src');
+      audioRef.current.load(); // リソース解放
+    }
+    isSwitchingChunkRef.current = false;
   }, []);
 
-  useEffect(() => { return () => { stopPolling(); cleanupAudio(); }; }, [stopPolling, cleanupAudio]);
+  // Audio要素の完全破棄（キャラ変更時のみ）
+  const destroyAudio = useCallback(() => {
+    isSwitchingChunkRef.current = true;
+    if (audioRef.current) {
+      audioRef.current.pause();
+      audioRef.current.onended = null;
+      audioRef.current.onpause = null;
+      audioRef.current.ontimeupdate = null;
+      audioRef.current.onerror = null;
+      audioRef.current.removeAttribute('src');
+      audioRef.current.load();
+      audioRef.current = null;
+    }
+    isSwitchingChunkRef.current = false;
+  }, []);
+
+  useEffect(() => { return () => { stopPolling(); destroyAudio(); }; }, [stopPolling, destroyAudio]);
+
+  // --- Audio要素の取得または作成 ---
+  const getOrCreateAudio = useCallback((): HTMLAudioElement => {
+    if (audioRef.current) return audioRef.current;
+    const audio = new Audio();
+    audio.preload = 'auto';
+    audioRef.current = audio;
+    return audio;
+  }, []);
 
   // --- init ---
   useEffect(() => { checkStatus(speakerId); }, [minuteId]); // eslint-disable-line react-hooks/exhaustive-deps
@@ -203,7 +232,7 @@ const TTSPlayer = forwardRef<TTSPlayerHandle, TTSPlayerProps>(function TTSPlayer
     }
   };
 
-  // --- generate (統合: generateAudio + generateSingleSpeaker) ---
+  // --- generate ---
   const triggerGenerate = async (spkId?: number) => {
     const targetSpk = spkId ?? speakerId;
     if (!summaryText?.trim()) {
@@ -250,7 +279,7 @@ const TTSPlayer = forwardRef<TTSPlayerHandle, TTSPlayerProps>(function TTSPlayer
   const handleVoiceChange = (newId: number) => {
     if (newId === speakerId) return;
     setStatus('loading');
-    cleanupAudio();
+    destroyAudio(); // キャラ変更時のみ Audio 要素を破棄
     isPlayingRef.current = false;
     notifyPlay(false);
     stopPolling();
@@ -260,6 +289,7 @@ const TTSPlayer = forwardRef<TTSPlayerHandle, TTSPlayerProps>(function TTSPlayer
     chunksRef.current = [];
     notifyProgress(0);
     setCurrentChunkIndex(0);
+    chunkIndexRef.current = 0;
     setIsFullyReady(false);
     setErrorMsg('');
     setGenTotal(0);
@@ -267,47 +297,41 @@ const TTSPlayer = forwardRef<TTSPlayerHandle, TTSPlayerProps>(function TTSPlayer
     checkStatus(newId, true);
   };
 
-  // --- preload & playback ---
-  const preloadNext = useCallback((index: number) => {
+  // --- 次チャンクのURLをブラウザキャッシュにプリフェッチ ---
+  const prefetchNext = useCallback((index: number) => {
     const cur = chunksRef.current;
     const ni = index + 1;
-    if (ni >= cur.length) { nextAudioRef.current = null; return; }
-    const next = new Audio(cur[ni].audio_url);
-    next.preload = 'auto';
-    next.playbackRate = speedRef.current;
-    nextAudioRef.current = next;
+    if (ni >= cur.length) return;
+    // fetch でキャッシュに乗せるだけ（Audio要素は作らない）
+    fetch(cur[ni].audio_url).catch(() => {});
   }, []);
 
+  // --- 単一Audio要素でチャンクを再生 ---
   const playChunk = useCallback((index: number) => {
     if (!isPlayingRef.current) return;
     const cur = chunksRef.current;
 
     if (index >= cur.length) {
+      // 全チャンク再生完了
       isPlayingRef.current = false;
       setStatus('ready');
       setCurrentChunkIndex(0);
+      chunkIndexRef.current = 0;
       notifyProgress(0);
       notifyPlay(false);
       return;
     }
 
-    internalPauseRef.current = true;
-    if (audioRef.current) { audioRef.current.pause(); audioRef.current = null; }
-    internalPauseRef.current = false;
-
-    // プリロード済みがあれば使う（URLの末尾で比較: ブラウザがsrcを絶対URLに変換するため）
+    const audio = getOrCreateAudio();
     const targetUrl = cur[index].audio_url;
-    let audio: HTMLAudioElement;
-    if (nextAudioRef.current && nextAudioRef.current.src.endsWith(new URL(targetUrl, location.href).pathname)) {
-      audio = nextAudioRef.current;
-      nextAudioRef.current = null;
-    } else {
-      audio = new Audio(targetUrl);
-    }
-    audio.playbackRate = speedRef.current;
-    audioRef.current = audio;
+
+    isSwitchingChunkRef.current = true;
+    chunkIndexRef.current = index;
     setCurrentChunkIndex(index);
-    preloadNext(index);
+
+    // 同じ Audio 要素の src を切り替え
+    audio.src = targetUrl;
+    audio.playbackRate = speedRef.current;
 
     const total = cur.length;
     const base = (index / total) * 100;
@@ -319,37 +343,42 @@ const TTSPlayer = forwardRef<TTSPlayerHandle, TTSPlayerProps>(function TTSPlayer
       }
     };
 
-    let endedNaturally = false;
-
     audio.onended = () => {
-      endedNaturally = true;
       if (!isPlayingRef.current) return;
-      const next = index + 1;
+      const next = chunkIndexRef.current + 1;
       if (next < chunksRef.current.length) {
         playChunk(next);
       } else {
         isPlayingRef.current = false;
         setStatus('ready');
         setCurrentChunkIndex(0);
+        chunkIndexRef.current = 0;
         notifyProgress(0);
         notifyPlay(false);
       }
     };
 
     audio.onpause = () => {
-      if (!endedNaturally && !internalPauseRef.current && isPlayingRef.current && audioRef.current === audio) {
-        isPlayingRef.current = false;
-        setStatus('paused');
-        notifyPlay(false);
-      }
+      // チャンク切替中・再生停止操作中の onpause は無視
+      if (isSwitchingChunkRef.current) return;
+      if (!isPlayingRef.current) return;
+      // 外部要因（通知・他アプリ・OS）による一時停止
+      isPlayingRef.current = false;
+      setStatus('paused');
+      notifyPlay(false);
     };
 
     audio.onerror = () => {
-      setErrorMsg(`チャンク${index}の再生に失敗しました`);
+      setErrorMsg(`チャンク${index + 1}の再生に失敗しました`);
       setStatus('error');
       isPlayingRef.current = false;
       notifyPlay(false);
     };
+
+    // 次チャンクをキャッシュにプリフェッチ
+    prefetchNext(index);
+
+    isSwitchingChunkRef.current = false;
 
     audio.play().catch(() => {
       setErrorMsg('再生を開始できませんでした');
@@ -357,10 +386,11 @@ const TTSPlayer = forwardRef<TTSPlayerHandle, TTSPlayerProps>(function TTSPlayer
       isPlayingRef.current = false;
       notifyPlay(false);
     });
-  }, [notifyPlay, notifyProgress, preloadNext]);
+  }, [notifyPlay, notifyProgress, getOrCreateAudio, prefetchNext]);
 
   const handlePlay = () => {
     if (status === 'paused' && audioRef.current) {
+      // 一時停止からの再開: 同じAudio要素でresume
       audioRef.current.play().catch(() => {
         setErrorMsg('再生を再開できませんでした');
         setStatus('error');
@@ -372,28 +402,32 @@ const TTSPlayer = forwardRef<TTSPlayerHandle, TTSPlayerProps>(function TTSPlayer
       notifyPlay(true);
       return;
     }
+    // 最初から再生: ユーザージェスチャーの中でAudio要素を確保
+    getOrCreateAudio();
     isPlayingRef.current = true;
     setStatus('playing');
     setCurrentChunkIndex(0);
+    chunkIndexRef.current = 0;
     notifyProgress(0);
     notifyPlay(true);
     playChunk(0);
   };
 
   const handlePause = () => {
-    internalPauseRef.current = true;
+    isSwitchingChunkRef.current = true;
     if (audioRef.current) audioRef.current.pause();
-    internalPauseRef.current = false;
+    isSwitchingChunkRef.current = false;
     isPlayingRef.current = false;
     setStatus('paused');
     notifyPlay(false);
   };
 
   const handleStop = () => {
-    cleanupAudio();
+    resetAudio();
     isPlayingRef.current = false;
     setStatus(isFullyReady ? 'ready' : 'generating');
     setCurrentChunkIndex(0);
+    chunkIndexRef.current = 0;
     notifyProgress(0);
     notifyPlay(false);
   };
@@ -405,8 +439,8 @@ const TTSPlayer = forwardRef<TTSPlayerHandle, TTSPlayerProps>(function TTSPlayer
     const target = Math.min(Math.floor((val / 100) * cur.length), cur.length - 1);
     notifyProgress(val);
     setCurrentChunkIndex(target);
+    chunkIndexRef.current = target;
     if (status === 'playing' || status === 'paused') {
-      cleanupAudio();
       isPlayingRef.current = true;
       setStatus('playing');
       notifyPlay(true);
