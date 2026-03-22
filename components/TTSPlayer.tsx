@@ -368,6 +368,7 @@ const TTSPlayer = forwardRef<TTSPlayerHandle, TTSPlayerProps>(function TTSPlayer
     audio.onpause = () => {
       if (isSwitchingRef.current) return;
       if (isEndedRef.current) return;
+      if (audio.ended) return; // モバイル: pause が ended より先に発火する対策
       if (!isPlayingRef.current) return;
       isPlayingRef.current = false;
       setStatus('paused');
