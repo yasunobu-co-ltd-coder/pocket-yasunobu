@@ -51,12 +51,10 @@ export default function Page() {
   const handleUserSelect = (user: UserData) => setCurrentUser(user);
 
   const closeHomeModal = () => {
-    if (isAudioPlaying && selectedHomeRecord) {
-      setIsModalVisible(false);
-    } else {
-      setSelectedHomeRecord(null);
-      setIsModalVisible(true);
-    }
+    ttsRef.current?.stop();
+    setIsAudioPlaying(false);
+    setSelectedHomeRecord(null);
+    setIsModalVisible(true);
   };
 
   const openHomeRecord = (record: MinutesRecord) => {

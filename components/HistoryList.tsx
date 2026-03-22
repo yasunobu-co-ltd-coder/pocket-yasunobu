@@ -1,10 +1,10 @@
 'use client';
 
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useRef } from 'react';
 import { Loader2, FileText, X, Save, User, Search, Trash2, Download, Plus, ArrowRightLeft } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 import { generateMinutesPdf } from '@/lib/generate-pdf';
-import TTSPlayer from './TTSPlayer';
+import TTSPlayer, { TTSPlayerHandle } from './TTSPlayer';
 
 type Filter = '全件' | '自分の作成';
 
@@ -44,6 +44,15 @@ export default function HistoryList({ userId, userName, refreshTrigger, initialS
     const [editSummary, setEditSummary] = useState('');
     const [isSaving, setIsSaving] = useState(false);
     const [isDeleting, setIsDeleting] = useState(false);
+
+    // TTS ref（モーダル閉じ時に停止するため）
+    const historyTtsRef = useRef<TTSPlayerHandle>(null);
+
+    const closeDetail = () => {
+        historyTtsRef.current?.stop();
+        setSelectedRecord(null);
+        setIsEditing(false);
+    };
 
     // 一括置換
     const [showReplace, setShowReplace] = useState(false);
@@ -313,12 +322,12 @@ export default function HistoryList({ userId, userName, refreshTrigger, initialS
             {/* ===== Detail Modal ===== */}
             {selectedRecord && (
                 <div className="fixed inset-0 bg-black/50 z-[100] flex items-center justify-center p-5"
-                    onClick={(e) => { if (e.target === e.currentTarget) { setSelectedRecord(null); setIsEditing(false); } }}>
+                    onClick={(e) => { if (e.target === e.currentTarget) closeDetail(); }}>
                     <div className="bg-white rounded-[20px] w-full max-w-[440px] max-h-[80vh] overflow-y-auto shadow-xl">
                         {/* Header */}
                         <div className="sticky top-0 bg-white rounded-t-[20px] px-7 pt-7 pb-5 border-b border-slate-100 flex items-center justify-between">
                             <h2 className="text-[20px] font-bold text-slate-800">議事録詳細</h2>
-                            <button onClick={() => { setSelectedRecord(null); setIsEditing(false); }}
+                            <button onClick={closeDetail}
                                 className="w-9 h-9 rounded-full bg-slate-100 flex items-center justify-center hover:bg-slate-200 transition-colors">
                                 <X className="w-5 h-5 text-slate-500" />
                             </button>
@@ -440,7 +449,7 @@ export default function HistoryList({ userId, userName, refreshTrigger, initialS
                                             PDFで出力
                                         </button>
                                         {/* TTS Player */}
-                                        <TTSPlayer minuteId={selectedRecord.id} summaryText={selectedRecord.summary} />
+                                        <TTSPlayer ref={historyTtsRef} minuteId={selectedRecord.id} summaryText={selectedRecord.summary} />
 
                                         <button onClick={() => startEdit(selectedRecord)}
                                             className="w-full bg-slate-100 text-slate-600 font-bold py-4 rounded-[14px] text-[15px] hover:bg-violet-50 hover:text-violet-600 transition-all active:scale-[0.97]">
