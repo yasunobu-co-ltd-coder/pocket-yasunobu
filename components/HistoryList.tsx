@@ -194,15 +194,19 @@ export default function HistoryList({ userId, userName, refreshTrigger, initialS
         if (!selectedRecord) return;
         setIsSaving(true);
         try {
-            const { error: updateError } = await supabase
-                .from('pocket-yasunobu')
-                .update({
+            const updateRes = await fetch('/api/minutes/update', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    id: selectedRecord.id,
                     client_name: editClientName,
                     summary: editSummary,
-                })
-                .eq('id', selectedRecord.id);
-
-            if (updateError) throw updateError;
+                }),
+            });
+            if (!updateRes.ok) {
+                const err = await updateRes.json();
+                throw new Error(err.error || 'Update failed');
+            }
 
             setRecords(records.map(r =>
                 r.id === selectedRecord.id
@@ -463,61 +467,15 @@ export default function HistoryList({ userId, userName, refreshTrigger, initialS
                                                 try {
                                                     const minuteId = selectedRecord.id;
 
-                                                    // 1. 音声ジョブを取得
-                                                    const { data: audioJobs } = await supabase
-                                                        .from('minutes_audio')
-                                                        .select('id')
-                                                        .eq('minute_id', minuteId);
-
-                                                    if (audioJobs && audioJobs.length > 0) {
-                                                        const audioIds = audioJobs.map(a => a.id);
-
-                                                        // 2. 音声チャンクレコードを削除
-                                                        await supabase
-                                                            .from('minutes_audio_chunks')
-                                                            .delete()
-                                                            .in('audio_id', audioIds);
-
-                                                        // 3. 音声ジョブレコードを削除
-                                                        await supabase
-                                                            .from('minutes_audio')
-                                                            .delete()
-                                                            .eq('minute_id', minuteId);
+                                                    const deleteRes = await fetch('/api/minutes/delete', {
+                                                        method: 'POST',
+                                                        headers: { 'Content-Type': 'application/json' },
+                                                        body: JSON.stringify({ minute_id: minuteId }),
+                                                    });
+                                                    if (!deleteRes.ok) {
+                                                        const err = await deleteRes.json();
+                                                        throw new Error(err.error || 'Delete failed');
                                                     }
-
-                                                    // 4. Storageの音声ファイルを削除（audio_idサブフォルダ対応）
-                                                    if (audioJobs && audioJobs.length > 0) {
-                                                        for (const job of audioJobs) {
-                                                            const prefix = `tts/${minuteId}/${job.id}`;
-                                                            const { data: files } = await supabase.storage
-                                                                .from('tts-audio')
-                                                                .list(prefix);
-                                                            if (files && files.length > 0) {
-                                                                await supabase.storage
-                                                                    .from('tts-audio')
-                                                                    .remove(files.map(f => `${prefix}/${f.name}`));
-                                                            }
-                                                        }
-                                                    }
-                                                    // 旧パス（audio_idなし）のファイルも削除
-                                                    const { data: legacyFiles } = await supabase.storage
-                                                        .from('tts-audio')
-                                                        .list(`tts/${minuteId}`);
-                                                    if (legacyFiles && legacyFiles.length > 0) {
-                                                        const filesToDelete = legacyFiles.filter(f => f.name.endsWith('.wav'));
-                                                        if (filesToDelete.length > 0) {
-                                                            await supabase.storage
-                                                                .from('tts-audio')
-                                                                .remove(filesToDelete.map(f => `tts/${minuteId}/${f.name}`));
-                                                        }
-                                                    }
-
-                                                    // 5. 議事録レコードを削除
-                                                    const { error: deleteError } = await supabase
-                                                        .from('pocket-yasunobu')
-                                                        .delete()
-                                                        .eq('id', minuteId);
-                                                    if (deleteError) throw deleteError;
                                                     setRecords(records.filter(r => r.id !== minuteId));
                                                     setSelectedRecord(null);
                                                     onDataChanged?.();

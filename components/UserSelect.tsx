@@ -282,11 +282,14 @@ export default function UserSelect({ onSelect }: UserSelectProps) {
         // Optimistic update
         setUsers(reordered);
 
-        // Persist new order to Supabase
-        const updates = reordered.map((u, i) =>
-            supabase.from('users').update({ sort_order: i }).eq('id', u.id)
-        );
-        await Promise.all(updates);
+        // Persist new order via API
+        await fetch('/api/users/reorder', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                orders: reordered.map((u, i) => ({ id: u.id, sort_order: i })),
+            }),
+        });
     };
 
     const handleSafeSelect = (user: UserData) => {

@@ -594,9 +594,10 @@ export default function VoiceRecorder({ userId, userName, onSaved, onCancel }: V
                 formattedMemo += '\n\n【次回予定】\n' + result.nextSchedule;
             }
 
-            const { data: inserted, error } = await supabase
-                .from('pocket-yasunobu')
-                .insert({
+            const res = await fetch('/api/minutes', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
                     user_id: userId,
                     client_name: meetingName,
                     transcript: editableTranscript,
@@ -605,13 +606,13 @@ export default function VoiceRecorder({ userId, userName, onSaved, onCancel }: V
                     todos: result.todos || [],
                     next_schedule: result.nextSchedule || '',
                     keywords: result.keywords || [],
-                })
-                .select('id')
-                .single();
+                }),
+            });
+            const inserted = await res.json();
 
-            if (error) {
-                console.error("Supabase Save Error:", error);
-                throw new Error(`${error.message} (Code: ${error.code})`);
+            if (!res.ok) {
+                console.error("Minutes Save Error:", inserted);
+                throw new Error(inserted.error || 'Save failed');
             }
 
             // 裏でTTS音声を自動生成
