@@ -394,6 +394,7 @@ const TTSPlayer = forwardRef<TTSPlayerHandle, TTSPlayerProps>(function TTSPlayer
         isSwitchingRef.current = false;
         return;
       }
+      audio.playbackRate = speedRef.current;
       audio.play()
         .then(() => {
           isSwitchingRef.current = false;
