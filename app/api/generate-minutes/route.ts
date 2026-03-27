@@ -287,6 +287,11 @@ async function expandTopics(
   - 単なる相槌や同意（「そうですね」「はい」等）
   - すでに決定事項(conclusion)と完全に同じ内容の繰り返し
   該当がなければ空配列
+- qAndAの記述スタイル: 原文の言い回しをできるだけ活かし、話し言葉のニュアンスを残すこと。ただし以下は除去・補正する:
+  - フィラー（「あのー」「えーと」「まぁ」「なんか」等）は除去
+  - 音声認識の誤変換は文脈から正しい表現に補正
+  - 文意が通らない箇所は最低限の整形のみ行う
+  - 議事録調に書き換えない。会話の温度感が残る程度に原文ベースで記載する
 - comparisonsは選択肢の比較があった場合のみ記載`;
 
     const userContent = JSON.stringify({
@@ -417,6 +422,7 @@ async function generateFinalMinutes(
   ※発言者名が不明な場合は「参加者」「回答者」等で代替可
   ※結論の背景・懸念・論点が分かるQ&Aは複数あれば全て記載する（件数制限なし）
   ※以下のみ除外: 雑談・相槌レベルのやりとり / 決定事項と完全に同じ内容の繰り返し
+  ※記述スタイル: 原文の言い回しをできるだけ活かし会話感を残す。フィラー（あのー・えーと等）と音声認識誤変換のみ除去・補正し、議事録調に書き換えない
 ・論点: 何が問題・テーマだったか（discussionStructuresのmainPointsから）
 ・出された意見: 参加者から出された意見・提案（expandedTopicsのopinions + discussionStructuresのarguments/counterArguments）
 ・比較検討: 選択肢の比較があれば（expandedTopicsのcomparisons）
