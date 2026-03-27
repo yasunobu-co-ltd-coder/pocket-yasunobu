@@ -264,7 +264,8 @@ async function expandTopics(
       "discussionDetail": "何が話し合われたかの詳細（発言の要旨を時系列で。200〜400文字）",
       "opinions": ["出された意見・提案1", "意見2"],
       "qAndA": [
-        {"q": "質問者名（不明なら「参加者」）: 質問内容", "a": "回答者名（不明なら「回答者」）: 回答内容"}
+        {"q": "質問者名（不明なら「参加者」）: 質問内容", "a": "回答者名（不明なら「回答者」）: 回答内容"},
+        {"q": "...", "a": "..."}
       ],
       "comparisons": ["比較検討された選択肢があれば記述（例: A案 vs B案）"],
       "conclusion": "結論（決まった場合）。未決なら「未決」と明記",
@@ -281,7 +282,7 @@ async function expandTopics(
 - 文字起こしに含まれない情報は書かない
 - discussionDetailは200〜400文字で詳細に書く
 - opinionsは発言ベースで具体的に
-- qAndAは文字起こし内の質問→回答の応酬を抽出する。質問と回答がセットになるやりとりを時系列で記録する。該当がなければ空配列
+- qAndAは文字起こし内の質問→回答の応酬を**漏れなく全て**抽出する。1つの議題に複数のQ&Aがあれば全て記録する（件数の上限なし）。質問と回答がセットになるやりとりを時系列で記録する。該当がなければ空配列
 - comparisonsは選択肢の比較があった場合のみ記載`;
 
     const userContent = JSON.stringify({
@@ -410,8 +411,9 @@ async function generateFinalMinutes(
   Q: ○○「質問内容」
   A: △△「回答内容」
   ※発言者名が不明な場合は「参加者」「回答者」等で代替可
-  ※質疑応答が複数あれば全て記載する
+  ※質疑応答が複数あれば件数の上限なく全て記載する（expandedTopicsのqAndAを漏れなく反映）
   ※単なる意見表明ではなく、質問→回答の応酬を優先的に抽出する
+  ※1つの議題にQ&Aが5件あれば5件全て書く。省略・集約しない
 ・論点: 何が問題・テーマだったか（discussionStructuresのmainPointsから）
 ・出された意見: 参加者から出された意見・提案（expandedTopicsのopinions + discussionStructuresのarguments/counterArguments）
 ・比較検討: 選択肢の比較があれば（expandedTopicsのcomparisons）
@@ -439,8 +441,8 @@ async function generateFinalMinutes(
 - nextScheduleは日付がわかる場合はYYYY年MM月DD日形式で記載
 - 目的は「読みやすい要約」ではなく「後から読んだ人がそのまま動ける議事録」にすること
 - 各議題の議論内容は必ず300文字以上書くこと
-- 質疑応答は会議の背景理解に不可欠。文字起こしに質問→回答のやりとりがある場合、要約せずQ&A形式でそのまま残すこと
-- expandedTopicsのqAndAデータを活用し、発言の趣旨を損なわないよう記載する
+- 質疑応答は会議の背景理解に不可欠。文字起こしに質問→回答のやりとりがある場合、要約せずQ&A形式でそのまま全件残すこと。件数上限なし
+- expandedTopicsのqAndAデータを漏れなく全て反映し、発言の趣旨を損なわないよう記載する
 
 今日の日付は ${TODAY()} です。${termPrompt}`;
 
