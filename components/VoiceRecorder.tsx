@@ -114,6 +114,9 @@ export default function VoiceRecorder({ userId, userName, onSaved, onCancel }: V
     const [editTodos, setEditTodos] = useState('');
     const [editNextSchedule, setEditNextSchedule] = useState('');
 
+    // 保存中ロック
+    const [isSaving, setIsSaving] = useState(false);
+
     // 一括置換
     const [showReplace, setShowReplace] = useState(false);
     const [replaceRules, setReplaceRules] = useState<{ from: string; to: string }[]>([{ from: '', to: '' }]);
@@ -247,6 +250,7 @@ export default function VoiceRecorder({ userId, userName, onSaved, onCancel }: V
         };
 
         recognition.onend = () => {
+            // recognitionRef が null なら明示的に停止された → 再起動しない
             if (isRecordingRef.current && recognitionRef.current) {
                 try { recognitionRef.current.start(); } catch (e) { console.log('Restart failed:', e); }
             }
@@ -259,8 +263,10 @@ export default function VoiceRecorder({ userId, userName, onSaved, onCancel }: V
 
     const stopSpeechRecognition = () => {
         if (recognitionRef.current) {
-            recognitionRef.current.stop();
+            // ref を先に null 化 → onend の自動再起動を確実にブロック
+            const rec = recognitionRef.current;
             recognitionRef.current = null;
+            try { rec.abort(); } catch { /* すでに停止済み */ }
         }
     };
 
@@ -287,13 +293,23 @@ export default function VoiceRecorder({ userId, userName, onSaved, onCancel }: V
     };
 
     const stopRecording = async () => {
+        // 1. フラグを即座に落とす（onend 再起動防止）
         isRecordingRef.current = false;
         setIsRecording(false);
+
+        // 2. Speech API を最優先で停止（abort で即座に強制終了）
+        stopSpeechRecognition();
+
+        // 3. タイマー・音声モニタリング停止
         stopTimer();
         stopAudioLevelMonitoring();
-        stopSpeechRecognition();
+
+        // 4. MediaStream トラック停止（マイク解放）
         if (streamRef.current) {
-            streamRef.current.getTracks().forEach(t => t.stop());
+            streamRef.current.getTracks().forEach(t => {
+                t.stop();
+                t.enabled = false;
+            });
             streamRef.current = null;
         }
         const transcript = finalTranscriptRef.current.trim() || liveTranscript.trim();
@@ -575,13 +591,14 @@ export default function VoiceRecorder({ userId, userName, onSaved, onCancel }: V
 
     // pocket-yasunobu テーブルに保存
     const saveMinutes = async () => {
-        if (!result) return;
+        if (!result || isSaving) return;
         const meetingName = (customer || result.customer || '').trim();
         if (!meetingName) {
             alert('会議名を入力してください');
             return;
         }
 
+        setIsSaving(true);
         try {
             let formattedMemo = result.summary;
             if (result.decisions && result.decisions.length > 0) {
@@ -626,6 +643,7 @@ export default function VoiceRecorder({ userId, userName, onSaved, onCancel }: V
             console.error(e);
             const msg = e instanceof Error ? e.message : 'Unknown error';
             alert('保存失敗: ' + msg);
+            setIsSaving(false);
         }
     };
 
@@ -841,6 +859,7 @@ export default function VoiceRecorder({ userId, userName, onSaved, onCancel }: V
 
                         {/* PDF export button */}
                         <button
+                            disabled={isSaving}
                             onClick={() => {
                                 generateMinutesPdf({
                                     meetingName: customer || result.customer || '',
@@ -852,9 +871,9 @@ export default function VoiceRecorder({ userId, userName, onSaved, onCancel }: V
                                 });
                                 saveMinutes();
                             }}
-                            className="w-full bg-slate-100 text-slate-600 font-bold py-4 rounded-[14px] text-[15px] hover:bg-violet-50 hover:text-violet-600 transition-all active:scale-[0.97] flex items-center justify-center gap-2">
-                            <Download className="w-5 h-5" />
-                            PDFで出力
+                            className={`w-full font-bold py-4 rounded-[14px] text-[15px] transition-all active:scale-[0.97] flex items-center justify-center gap-2 ${isSaving ? 'bg-slate-200 text-slate-400 cursor-not-allowed' : 'bg-slate-100 text-slate-600 hover:bg-violet-50 hover:text-violet-600'}`}>
+                            {isSaving ? <Loader2 className="w-5 h-5 animate-spin" /> : <Download className="w-5 h-5" />}
+                            {isSaving ? '保存中...' : 'PDFで出力'}
                         </button>
 
                         {/* Edit button */}
@@ -868,10 +887,11 @@ export default function VoiceRecorder({ userId, userName, onSaved, onCancel }: V
 
                         {/* Save button */}
                         <button onClick={saveMinutes}
-                            className="w-full text-white font-bold py-4 rounded-[14px] shadow-[0_4px_12px_rgba(124,58,237,0.3)] active:scale-[0.97] transition-transform flex items-center justify-center gap-2 text-[16px]"
+                            disabled={isSaving}
+                            className={`w-full text-white font-bold py-4 rounded-[14px] shadow-[0_4px_12px_rgba(124,58,237,0.3)] transition-transform flex items-center justify-center gap-2 text-[16px] ${isSaving ? 'opacity-50 cursor-not-allowed' : 'active:scale-[0.97]'}`}
                             style={{ background: 'linear-gradient(135deg, #7c3aed 0%, #6d28d9 100%)' }}>
-                            <Save className="w-5 h-5" />
-                            保存する
+                            {isSaving ? <Loader2 className="w-5 h-5 animate-spin" /> : <Save className="w-5 h-5" />}
+                            {isSaving ? '保存中...' : '保存する'}
                         </button>
                     </div>
                 </div>
