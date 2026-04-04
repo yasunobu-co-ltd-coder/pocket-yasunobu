@@ -117,6 +117,9 @@ export default function VoiceRecorder({ userId, userName, onSaved, onCancel }: V
     // 保存中ロック
     const [isSaving, setIsSaving] = useState(false);
 
+    // 文字起こし整形
+    const [isCleaningUp, setIsCleaningUp] = useState(false);
+
     // 一括置換
     const [showReplace, setShowReplace] = useState(false);
     const [replaceRules, setReplaceRules] = useState<{ from: string; to: string }[]>([{ from: '', to: '' }]);
@@ -574,6 +577,27 @@ export default function VoiceRecorder({ userId, userName, onSaved, onCancel }: V
         setIsEditingResult(false);
     };
 
+    // 文字起こし整形
+    const cleanupTranscript = async (format: 'structured' | 'summary' | 'verbatim') => {
+        if (!editableTranscript.trim() || isCleaningUp) return;
+        setIsCleaningUp(true);
+        try {
+            const resp = await fetch('/api/cleanup-transcript', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ transcript: editableTranscript, format }),
+            });
+            if (!resp.ok) throw new Error(`整形失敗 (${resp.status})`);
+            const data = await resp.json();
+            if (data.text) setEditableTranscript(data.text);
+        } catch (e: unknown) {
+            const msg = e instanceof Error ? e.message : 'Unknown error';
+            alert('整形エラー: ' + msg);
+        } finally {
+            setIsCleaningUp(false);
+        }
+    };
+
     // TTS自動生成（ジョブ作成のみ → VPSワーカーが処理）
     const triggerTtsInBackground = async (minuteId: number) => {
         try {
@@ -704,6 +728,38 @@ export default function VoiceRecorder({ userId, userName, onSaved, onCancel }: V
                             className="w-full h-56 bg-slate-50 border border-slate-200 rounded-[12px] p-4 text-[14px] text-slate-700 leading-[1.6] focus:border-violet-400 focus:bg-white focus:shadow-[0_0_0_4px_rgba(124,58,237,0.1)] outline-none resize-none placeholder-slate-300 transition-all"
                             placeholder="文字起こし結果..."
                         />
+
+                        {/* 整形オプション */}
+                        <div className="space-y-2">
+                            <p className="text-[11px] font-bold text-slate-400 uppercase tracking-[0.5px]">
+                                事前整形（任意）
+                            </p>
+                            <div className="grid grid-cols-3 gap-2">
+                                {([
+                                    { format: 'structured', label: '構造化', desc: '見出し付き' },
+                                    { format: 'summary',    label: '要約',   desc: '1/5に圧縮' },
+                                    { format: 'verbatim',   label: 'ほぼ原文', desc: '最小限整形' },
+                                ] as const).map(({ format, label, desc }) => (
+                                    <button
+                                        key={format}
+                                        disabled={isCleaningUp}
+                                        onClick={() => cleanupTranscript(format)}
+                                        className={`flex flex-col items-center gap-0.5 py-3 px-2 rounded-[12px] border text-center transition-all active:scale-[0.97] ${
+                                            isCleaningUp
+                                                ? 'bg-slate-50 border-slate-200 text-slate-300 cursor-not-allowed'
+                                                : 'bg-slate-50 border-slate-200 text-slate-600 hover:bg-violet-50 hover:border-violet-300 hover:text-violet-700'
+                                        }`}
+                                    >
+                                        {isCleaningUp ? (
+                                            <Loader2 className="w-4 h-4 animate-spin" />
+                                        ) : null}
+                                        <span className="text-[13px] font-bold">{label}</span>
+                                        <span className="text-[10px] text-slate-400">{desc}</span>
+                                    </button>
+                                ))}
+                            </div>
+                        </div>
+
                         <button onClick={() => generateMinutes()}
                             className="w-full text-white font-bold py-4 rounded-[14px] shadow-[0_4px_12px_rgba(124,58,237,0.3)] active:scale-[0.97] transition-transform text-[16px]"
                             style={{ background: 'linear-gradient(135deg, #7c3aed 0%, #6d28d9 100%)' }}>
