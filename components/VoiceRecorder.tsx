@@ -71,6 +71,14 @@ declare global {
 }
 
 type InputMode = 'select' | 'recording' | 'uploading';
+type MinutesStyle = 'meeting' | 'lecture' | 'sales' | 'discussion';
+
+const STYLE_OPTIONS: { value: MinutesStyle; label: string; desc: string }[] = [
+    { value: 'meeting',    label: '会議',     desc: '複数人の会議・MTG' },
+    { value: 'lecture',    label: '講演',     desc: '講義・セミナー・勉強会' },
+    { value: 'sales',      label: '営業対談', desc: '商談・ヒアリング' },
+    { value: 'discussion', label: '長い対談', desc: '対談・インタビュー' },
+];
 
 export default function VoiceRecorder({ userId, userName, onSaved, onCancel }: VoiceRecorderProps) {
     const [inputMode, setInputMode] = useState<InputMode>('select');
@@ -90,6 +98,14 @@ export default function VoiceRecorder({ userId, userName, onSaved, onCancel }: V
     const isRecordingRef = useRef<boolean>(false);
     const [liveTranscript, setLiveTranscript] = useState<string>('');
     const finalTranscriptRef = useRef<string>('');
+
+    // Recording safeguards
+    const wakeLockRef = useRef<WakeLockSentinel | null>(null);
+    const mediaRecorderRef = useRef<MediaRecorder | null>(null);
+    const recordedChunksRef = useRef<Blob[]>([]);
+    const silentAudioRef = useRef<{ ctx: AudioContext; osc: OscillatorNode } | null>(null);
+    const [bgWarning, setBgWarning] = useState(false);
+    const bgTranscriptSnapshotRef = useRef<string>('');
 
     // Upload State
     const [uploadedFiles, setUploadedFiles] = useState<File[]>([]);
@@ -117,6 +133,9 @@ export default function VoiceRecorder({ userId, userName, onSaved, onCancel }: V
     // 保存中ロック
     const [isSaving, setIsSaving] = useState(false);
 
+    // スタイル選択
+    const [minutesStyle, setMinutesStyle] = useState<MinutesStyle>('meeting');
+
     // 文字起こし整形
     const [isCleaningUp, setIsCleaningUp] = useState(false);
 
@@ -131,6 +150,10 @@ export default function VoiceRecorder({ userId, userName, onSaved, onCancel }: V
             if (audioContextRef.current) audioContextRef.current.close();
             if (recognitionRef.current) recognitionRef.current.stop();
             if (streamRef.current) streamRef.current.getTracks().forEach(t => t.stop());
+            // セーフガードクリーンアップ
+            if (wakeLockRef.current) { try { wakeLockRef.current.release(); } catch {} }
+            if (silentAudioRef.current) { try { silentAudioRef.current.osc.stop(); silentAudioRef.current.ctx.close(); } catch {} }
+            if (mediaRecorderRef.current && mediaRecorderRef.current.state !== 'inactive') { try { mediaRecorderRef.current.stop(); } catch {} }
         };
     }, []);
 
@@ -273,6 +296,188 @@ export default function VoiceRecorder({ userId, userName, onSaved, onCancel }: V
         }
     };
 
+    // === 録音セーフガード ===
+
+    // Wake Lock: 画面スリープ防止
+    const requestWakeLock = async () => {
+        try {
+            if ('wakeLock' in navigator) {
+                wakeLockRef.current = await navigator.wakeLock.request('screen');
+                wakeLockRef.current.addEventListener('release', () => {
+                    console.log('[WakeLock] released');
+                });
+                console.log('[WakeLock] acquired');
+            }
+        } catch (e) {
+            console.warn('[WakeLock] failed:', e);
+        }
+    };
+
+    const releaseWakeLock = () => {
+        if (wakeLockRef.current) {
+            wakeLockRef.current.release();
+            wakeLockRef.current = null;
+        }
+    };
+
+    // 無音オーディオ再生: バックグラウンドでブラウザを起こし続ける
+    const startSilentAudio = () => {
+        try {
+            const ctx = new AudioContext();
+            const osc = ctx.createOscillator();
+            const gain = ctx.createGain();
+            gain.gain.value = 0.001; // ほぼ無音
+            osc.connect(gain);
+            gain.connect(ctx.destination);
+            osc.start();
+            silentAudioRef.current = { ctx, osc };
+            console.log('[SilentAudio] started');
+        } catch (e) {
+            console.warn('[SilentAudio] failed:', e);
+        }
+    };
+
+    const stopSilentAudio = () => {
+        if (silentAudioRef.current) {
+            try {
+                silentAudioRef.current.osc.stop();
+                silentAudioRef.current.ctx.close();
+            } catch { /* already stopped */ }
+            silentAudioRef.current = null;
+        }
+    };
+
+    // MediaRecorder: 音声チャンク定期保存（30秒ごと）
+    const startMediaRecorder = (stream: MediaStream) => {
+        try {
+            const recorder = new MediaRecorder(stream, { mimeType: 'audio/webm;codecs=opus' });
+            recordedChunksRef.current = [];
+
+            recorder.ondataavailable = (e) => {
+                if (e.data.size > 0) {
+                    recordedChunksRef.current.push(e.data);
+                    // IndexedDBにバックアップ保存
+                    saveChunksToIndexedDB();
+                }
+            };
+
+            recorder.start(30000); // 30秒ごとにチャンク取得
+            mediaRecorderRef.current = recorder;
+            console.log('[MediaRecorder] started with 30s timeslice');
+        } catch (e) {
+            console.warn('[MediaRecorder] failed to start:', e);
+        }
+    };
+
+    const stopMediaRecorder = (): Blob | null => {
+        if (mediaRecorderRef.current && mediaRecorderRef.current.state !== 'inactive') {
+            mediaRecorderRef.current.stop();
+        }
+        mediaRecorderRef.current = null;
+        if (recordedChunksRef.current.length > 0) {
+            return new Blob(recordedChunksRef.current, { type: 'audio/webm' });
+        }
+        return null;
+    };
+
+    // IndexedDB バックアップ
+    const getDB = (): Promise<IDBDatabase> => {
+        return new Promise((resolve, reject) => {
+            const req = indexedDB.open('pocket-recording-backup', 1);
+            req.onupgradeneeded = () => {
+                const db = req.result;
+                if (!db.objectStoreNames.contains('chunks')) {
+                    db.createObjectStore('chunks', { keyPath: 'id', autoIncrement: true });
+                }
+            };
+            req.onsuccess = () => resolve(req.result);
+            req.onerror = () => reject(req.error);
+        });
+    };
+
+    const saveChunksToIndexedDB = async () => {
+        try {
+            const db = await getDB();
+            const tx = db.transaction('chunks', 'readwrite');
+            const store = tx.objectStore('chunks');
+            // 古いデータをクリアして最新を保存
+            store.clear();
+            const blob = new Blob(recordedChunksRef.current, { type: 'audio/webm' });
+            store.put({
+                id: 1,
+                audio: blob,
+                transcript: finalTranscriptRef.current,
+                timestamp: Date.now(),
+            });
+            console.log(`[IndexedDB] saved ${recordedChunksRef.current.length} chunks, transcript ${finalTranscriptRef.current.length} chars`);
+        } catch (e) {
+            console.warn('[IndexedDB] save failed:', e);
+        }
+    };
+
+    const clearIndexedDB = async () => {
+        try {
+            const db = await getDB();
+            const tx = db.transaction('chunks', 'readwrite');
+            tx.objectStore('chunks').clear();
+        } catch { /* ignore */ }
+    };
+
+    const loadBackupFromIndexedDB = async (): Promise<{ audio: Blob | null; transcript: string } | null> => {
+        try {
+            const db = await getDB();
+            const tx = db.transaction('chunks', 'readonly');
+            const store = tx.objectStore('chunks');
+            return new Promise((resolve) => {
+                const req = store.get(1);
+                req.onsuccess = () => {
+                    if (req.result) {
+                        resolve({ audio: req.result.audio, transcript: req.result.transcript || '' });
+                    } else {
+                        resolve(null);
+                    }
+                };
+                req.onerror = () => resolve(null);
+            });
+        } catch {
+            return null;
+        }
+    };
+
+    // visibilitychange: バックグラウンド検知
+    useEffect(() => {
+        const handleVisibility = () => {
+            if (!isRecordingRef.current) return;
+
+            if (document.visibilityState === 'hidden') {
+                // バックグラウンドに移行 → 即座にスナップショット保存
+                bgTranscriptSnapshotRef.current = finalTranscriptRef.current;
+                saveChunksToIndexedDB();
+                console.log('[Visibility] went to background, saved snapshot');
+            } else if (document.visibilityState === 'visible') {
+                // 復帰時: 音声認識が止まっている可能性をチェック
+                console.log('[Visibility] returned to foreground');
+                // Wake Lock を再取得（ブラウザによっては解放されている）
+                requestWakeLock();
+
+                // 音声認識が止まっていたら再起動
+                if (isRecordingRef.current && !recognitionRef.current) {
+                    startSpeechRecognition();
+                }
+
+                // バックグラウンド中にテキストが途切れた場合の警告
+                const currentLen = finalTranscriptRef.current.length;
+                const snapshotLen = bgTranscriptSnapshotRef.current.length;
+                if (snapshotLen > 0 && currentLen === snapshotLen) {
+                    setBgWarning(true);
+                }
+            }
+        };
+
+        document.addEventListener('visibilitychange', handleVisibility);
+        return () => document.removeEventListener('visibilitychange', handleVisibility);
+    }, []);
+
     // === 録音モード ===
     const startRecording = async () => {
         try {
@@ -284,11 +489,19 @@ export default function VoiceRecorder({ userId, userName, onSaved, onCancel }: V
             }
             finalTranscriptRef.current = '';
             setLiveTranscript('');
+            setBgWarning(false);
+            bgTranscriptSnapshotRef.current = '';
             isRecordingRef.current = true;
             setIsRecording(true);
             setInputMode('recording');
             startTimer();
             startAudioLevelMonitoring(stream);
+
+            // セーフガード起動
+            await requestWakeLock();
+            startSilentAudio();
+            startMediaRecorder(stream);
+            await clearIndexedDB();
         } catch (err) {
             alert('マイクへのアクセスが拒否されました');
             console.error(err);
@@ -307,7 +520,12 @@ export default function VoiceRecorder({ userId, userName, onSaved, onCancel }: V
         stopTimer();
         stopAudioLevelMonitoring();
 
-        // 4. MediaStream トラック停止（マイク解放）
+        // 4. セーフガード停止
+        releaseWakeLock();
+        stopSilentAudio();
+        const recordedBlob = stopMediaRecorder();
+
+        // 5. MediaStream トラック停止（マイク解放）
         if (streamRef.current) {
             streamRef.current.getTracks().forEach(t => {
                 t.stop();
@@ -315,12 +533,47 @@ export default function VoiceRecorder({ userId, userName, onSaved, onCancel }: V
             });
             streamRef.current = null;
         }
-        const transcript = finalTranscriptRef.current.trim() || liveTranscript.trim();
+
+        let transcript = finalTranscriptRef.current.trim() || liveTranscript.trim();
+
+        // 6. テキストが空 or 短すぎる場合、IndexedDBバックアップから復元を試みる
+        if (!transcript || transcript.length < 10) {
+            const backup = await loadBackupFromIndexedDB();
+            if (backup?.transcript && backup.transcript.trim().length > (transcript?.length || 0)) {
+                transcript = backup.transcript.trim();
+                console.log('[Recovery] restored transcript from IndexedDB backup');
+            }
+        }
+
+        // 7. 録音データがある場合、Whisperで文字起こしも試みる（テキストが短い場合のフォールバック）
+        if (recordedBlob && recordedBlob.size > 10000 && (!transcript || transcript.length < 50)) {
+            try {
+                setIsProcessing(true);
+                setProcessStep('録音データから文字起こし中...');
+                const formData = new FormData();
+                formData.append('file', new File([recordedBlob], 'recording.webm', { type: 'audio/webm' }));
+                formData.append('chunkIndex', '0');
+                const resp = await fetch('/api/transcribe-chunk', {
+                    method: 'POST',
+                    body: formData,
+                });
+                if (resp.ok) {
+                    const data = await resp.json();
+                    if (data.text && data.text.trim().length > (transcript?.length || 0)) {
+                        transcript = data.text.trim();
+                        console.log('[Recovery] used Whisper fallback transcription');
+                    }
+                }
+            } catch (e) {
+                console.warn('[Recovery] Whisper fallback failed:', e);
+            }
+        }
+
+        await clearIndexedDB();
+
         if (transcript) {
             setEditableTranscript(transcript);
-            setIsProcessing(true);
-            setProcessStep('議事録を作成中...');
-            await generateMinutes(transcript);
+            setShowTranscript(true);
         } else {
             alert('音声が認識できませんでした。もう一度お試しください。');
             setInputMode('select');
@@ -486,7 +739,7 @@ export default function VoiceRecorder({ userId, userName, onSaved, onCancel }: V
             const resp = await fetch("/api/generate-minutes", {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ transcript: text, chunkCount: 1, user_id: userId, customer })
+                body: JSON.stringify({ transcript: text, chunkCount: 1, user_id: userId, customer, style: minutesStyle })
             });
 
             if (!resp.ok) {
@@ -680,6 +933,7 @@ export default function VoiceRecorder({ userId, userName, onSaved, onCancel }: V
         setTimer(0);
         setUploadedFiles([]);
         setInputMode('select');
+        setBgWarning(false);
     };
 
     // === Processing Screen ===
@@ -753,6 +1007,29 @@ export default function VoiceRecorder({ userId, userName, onSaved, onCancel }: V
                                         {isCleaningUp ? (
                                             <Loader2 className="w-4 h-4 animate-spin" />
                                         ) : null}
+                                        <span className="text-[13px] font-bold">{label}</span>
+                                        <span className="text-[10px] text-slate-400">{desc}</span>
+                                    </button>
+                                ))}
+                            </div>
+                        </div>
+
+                        {/* スタイル選択 */}
+                        <div className="space-y-2">
+                            <p className="text-[11px] font-bold text-slate-400 uppercase tracking-[0.5px]">
+                                議事録スタイル
+                            </p>
+                            <div className="grid grid-cols-2 gap-2">
+                                {STYLE_OPTIONS.map(({ value, label, desc }) => (
+                                    <button
+                                        key={value}
+                                        onClick={() => setMinutesStyle(value)}
+                                        className={`flex flex-col items-center gap-0.5 py-3 px-2 rounded-[12px] border text-center transition-all active:scale-[0.97] ${
+                                            minutesStyle === value
+                                                ? 'bg-violet-50 border-violet-400 text-violet-700 shadow-[0_0_0_2px_rgba(124,58,237,0.15)]'
+                                                : 'bg-slate-50 border-slate-200 text-slate-600 hover:bg-violet-50 hover:border-violet-300 hover:text-violet-700'
+                                        }`}
+                                    >
                                         <span className="text-[13px] font-bold">{label}</span>
                                         <span className="text-[10px] text-slate-400">{desc}</span>
                                     </button>
@@ -965,6 +1242,17 @@ export default function VoiceRecorder({ userId, userName, onSaved, onCancel }: V
                         <div className="w-2 h-2 rounded-full bg-red-500 animate-pulse" />
                         <span className="text-[13px] font-semibold text-red-600">録音中</span>
                     </div>
+
+                    {bgWarning && (
+                        <div className="px-5 py-3 bg-amber-50 border-b border-amber-200 flex items-center gap-2">
+                            <span className="text-[12px] text-amber-700">
+                                バックグラウンド移行を検知しました。一部の音声が記録されていない可能性があります。録音は継続中です。
+                            </span>
+                            <button onClick={() => setBgWarning(false)} className="text-amber-500 text-[11px] font-bold ml-auto flex-shrink-0">
+                                OK
+                            </button>
+                        </div>
+                    )}
 
                     <div className="p-10 text-center">
                         {/* Timer */}
