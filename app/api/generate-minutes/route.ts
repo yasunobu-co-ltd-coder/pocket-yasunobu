@@ -1,13 +1,13 @@
 import { NextRequest, NextResponse } from 'next/server';
-import OpenAI from 'openai';
+import Anthropic from '@anthropic-ai/sdk';
 import { getSupabaseAdmin } from '@/lib/supabase';
 
 export const runtime = 'nodejs';
 export const maxDuration = 120;
 
-const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
 
-const LLM_MODEL = 'gpt-4o';
+const LLM_MODEL = 'claude-sonnet-4-20250514';
 const LLM_TEMPERATURE = 0.2;
 const TODAY = () => new Date().toLocaleDateString('ja-JP');
 
@@ -99,7 +99,7 @@ YYYY年MM月DD日（不明なら記載なし）
 ステップ2: ...`;
 
 async function generateMinutesSummary(transcript: string, termPrompt: string): Promise<string> {
-    console.log('[MINUTES] CALL1: 議事録テキスト生成 開始');
+    console.log('[MINUTES] CALL1: 議事録テキスト生成 開始 (Claude)');
     const userMessage = `output_format: minutes
 
 以下の文字起こしテキストを整形して会議議事録を作成してください。
@@ -109,17 +109,20 @@ async function generateMinutesSummary(transcript: string, termPrompt: string): P
 ${transcript}
 ---`;
 
-    const completion = await openai.chat.completions.create({
+    const message = await anthropic.messages.create({
         model: LLM_MODEL,
         temperature: LLM_TEMPERATURE,
         max_tokens: 8192,
+        system: MINUTES_SYSTEM_PROMPT,
         messages: [
-            { role: 'system', content: MINUTES_SYSTEM_PROMPT },
             { role: 'user', content: userMessage },
         ],
     });
 
-    const text = completion.choices[0].message.content || '';
+    const text = message.content
+        .filter(block => block.type === 'text')
+        .map(block => block.text)
+        .join('');
     console.log(`[MINUTES] CALL1完了: ${text.length}文字`);
     return text;
 }
@@ -127,9 +130,9 @@ ${transcript}
 // ─── CALL2: 構造化データ抽出 ───
 
 async function extractStructuredData(minutesText: string): Promise<Record<string, unknown>> {
-    console.log('[MINUTES] CALL2: 構造化データ抽出 開始');
+    console.log('[MINUTES] CALL2: 構造化データ抽出 開始 (Claude)');
     const systemPrompt = `以下の会議議事録テキストから構造化データをJSONで抽出してください。
-出力は有効なJSONのみを返してください。
+出力は有効なJSONのみを返してください。マークダウンのコードブロックは使わず、JSONテキストだけを出力してください。
 
 出力形式:
 {
@@ -148,19 +151,24 @@ async function extractStructuredData(minutesText: string): Promise<Record<string
 - keywords: 議題・テーマから重要なキーワードを5個以内で抽出
 - 該当がない項目は空配列・空文字`;
 
-    const completion = await openai.chat.completions.create({
+    const message = await anthropic.messages.create({
         model: LLM_MODEL,
         temperature: 0,
         max_tokens: 2000,
+        system: systemPrompt,
         messages: [
-            { role: 'system', content: systemPrompt },
             { role: 'user', content: minutesText },
         ],
-        response_format: { type: 'json_object' },
     });
 
-    const text = completion.choices[0].message.content || '{}';
-    const parsed = (() => { try { return JSON.parse(text); } catch { return {}; } })();
+    const rawText = message.content
+        .filter(block => block.type === 'text')
+        .map(block => block.text)
+        .join('');
+
+    // JSONパース（コードブロック除去対応）
+    const jsonStr = rawText.replace(/^```(?:json)?\s*/, '').replace(/\s*```$/, '').trim();
+    const parsed = (() => { try { return JSON.parse(jsonStr); } catch { return {}; } })();
     console.log('[MINUTES] CALL2完了');
     return parsed;
 }
@@ -213,10 +221,10 @@ export async function POST(req: NextRequest) {
 
         console.log(`[MINUTES] 開始: 文字起こし ${transcript.length}文字, ${chunkCount || 1}チャンク`);
 
-        // CALL1: 議事録テキスト生成
+        // CALL1: 議事録テキスト生成（Claude）
         const summary = await generateMinutesSummary(transcript, termPrompt);
 
-        // CALL2: 構造化データ抽出
+        // CALL2: 構造化データ抽出（Claude）
         const structured = await extractStructuredData(summary);
 
         const result = {

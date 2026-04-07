@@ -5,6 +5,7 @@ import { Loader2, FileText, X, Save, User, Search, Trash2, Download, Plus, Arrow
 import { supabase } from '@/lib/supabase';
 import { generateMinutesPdf } from '@/lib/generate-pdf';
 import TTSPlayer, { TTSPlayerHandle } from './TTSPlayer';
+import RadioTalkPlayer, { RadioTalkPlayerHandle } from './RadioTalkPlayer';
 
 type Filter = '全件' | '自分の作成';
 
@@ -47,9 +48,11 @@ export default function HistoryList({ userId, userName, refreshTrigger, initialS
 
     // TTS ref（モーダル閉じ時に停止するため）
     const historyTtsRef = useRef<TTSPlayerHandle>(null);
+    const radioTalkRef = useRef<RadioTalkPlayerHandle>(null);
 
     const closeDetail = () => {
         historyTtsRef.current?.stop();
+        radioTalkRef.current?.stop();
         setSelectedRecord(null);
         setIsEditing(false);
     };
@@ -454,6 +457,9 @@ export default function HistoryList({ userId, userName, refreshTrigger, initialS
                                         </button>
                                         {/* TTS Player */}
                                         <TTSPlayer ref={historyTtsRef} minuteId={selectedRecord.id} summaryText={selectedRecord.summary} />
+
+                                        {/* ラジオトーク */}
+                                        <RadioTalkPlayer ref={radioTalkRef} minuteId={selectedRecord.id} />
 
                                         <button onClick={() => startEdit(selectedRecord)}
                                             className="w-full bg-slate-100 text-slate-600 font-bold py-4 rounded-[14px] text-[15px] hover:bg-violet-50 hover:text-violet-600 transition-all active:scale-[0.97]">

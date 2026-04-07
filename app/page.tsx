@@ -9,6 +9,7 @@ import TermDictionary from '@/components/TermDictionary';
 import { supabase } from '@/lib/supabase';
 import { generateMinutesPdf } from '@/lib/generate-pdf';
 import TTSPlayer, { TTSPlayerHandle } from '@/components/TTSPlayer';
+import RadioTalkPlayer, { RadioTalkPlayerHandle } from '@/components/RadioTalkPlayer';
 
 type Tab = 'home' | 'history';
 type Mode = 'idle' | 'voice';
@@ -47,11 +48,13 @@ export default function Page() {
   const [isAudioPlaying, setIsAudioPlaying] = useState(false);
   const [bgProgress, setBgProgress] = useState(0);
   const ttsRef = useRef<TTSPlayerHandle>(null);
+  const radioTalkRef = useRef<RadioTalkPlayerHandle>(null);
 
   const handleUserSelect = (user: UserData) => setCurrentUser(user);
 
   const closeHomeModal = () => {
     ttsRef.current?.stop();
+    radioTalkRef.current?.stop();
     setIsAudioPlaying(false);
     setSelectedHomeRecord(null);
     setIsModalVisible(true);
@@ -377,6 +380,8 @@ export default function Page() {
                   onPlaybackChange={setIsAudioPlaying}
                   onProgressChange={setBgProgress}
                 />
+                {/* ラジオトーク */}
+                <RadioTalkPlayer ref={radioTalkRef} minuteId={selectedHomeRecord.id} />
               </div>
             </div>
           </div>

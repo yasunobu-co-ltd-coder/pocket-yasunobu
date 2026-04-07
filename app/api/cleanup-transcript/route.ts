@@ -1,10 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server';
-import OpenAI from 'openai';
+import Anthropic from '@anthropic-ai/sdk';
 
 export const runtime = 'nodejs';
 export const maxDuration = 60;
 
-const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
 
 export type CleanupFormat = 'structured' | 'summary' | 'verbatim';
 
@@ -98,17 +98,20 @@ export async function POST(req: NextRequest) {
 ${transcript}
 ---`;
 
-        const completion = await openai.chat.completions.create({
-            model: 'gpt-4o',
+        const response = await anthropic.messages.create({
+            model: 'claude-sonnet-4-20250514',
             temperature: 0.2,
             max_tokens: 8192,
+            system: SYSTEM_PROMPT,
             messages: [
-                { role: 'system', content: SYSTEM_PROMPT },
                 { role: 'user', content: userMessage },
             ],
         });
 
-        const cleaned = completion.choices[0].message.content || transcript;
+        const cleaned = response.content
+            .filter(block => block.type === 'text')
+            .map(block => block.text)
+            .join('') || transcript;
         return NextResponse.json({ text: cleaned });
 
     } catch (error: unknown) {
