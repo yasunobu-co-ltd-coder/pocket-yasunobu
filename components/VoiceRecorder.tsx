@@ -1109,7 +1109,7 @@ export default function VoiceRecorder({ userId, userName, onSaved, onCancel }: V
                                                 <div key={i} className="bg-white border border-amber-200 rounded-[10px] p-3 space-y-2">
                                                     <div className="flex items-center gap-2">
                                                         <span className="text-[11px] font-bold text-amber-500 w-8 flex-shrink-0">前</span>
-                                                        <input type="text" value={rule.from} onChange={(e) => updateReplaceRule(i, 'from', e.target.value)}
+                                                        <input type="text" id={`replace-from-${i}`} name={`replace-from-${i}`} value={rule.from} onChange={(e) => updateReplaceRule(i, 'from', e.target.value)}
                                                             placeholder="置換前の単語"
                                                             className="flex-1 bg-amber-50 border border-amber-100 rounded-[6px] px-3 py-1.5 text-[13px] text-slate-700 focus:border-amber-400 outline-none" />
                                                         {replaceRules.length > 1 && (
@@ -1121,7 +1121,7 @@ export default function VoiceRecorder({ userId, userName, onSaved, onCancel }: V
                                                     </div>
                                                     <div className="flex items-center gap-2">
                                                         <span className="text-[11px] font-bold text-emerald-500 w-8 flex-shrink-0">後</span>
-                                                        <input type="text" value={rule.to} onChange={(e) => updateReplaceRule(i, 'to', e.target.value)}
+                                                        <input type="text" id={`replace-to-${i}`} name={`replace-to-${i}`} value={rule.to} onChange={(e) => updateReplaceRule(i, 'to', e.target.value)}
                                                             placeholder="置換後の単語"
                                                             className="flex-1 bg-emerald-50 border border-emerald-100 rounded-[6px] px-3 py-1.5 text-[13px] text-slate-700 focus:border-emerald-400 outline-none" />
                                                         {replaceRules.length > 1 && <div className="w-7 flex-shrink-0" />}
