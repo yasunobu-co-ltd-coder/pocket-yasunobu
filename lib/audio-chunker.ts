@@ -93,7 +93,7 @@ export async function splitAudioIntoChunks(file: File): Promise<{ chunks: Blob[]
     return { chunks, totalDuration };
 }
 
-/** 1チャンクをWhisper APIへ送信（リトライ付き） */
+/** 1チャンクをWhisper APIへ送信（リトライ付き、全リトライ失敗時は空文字を返す） */
 async function transcribeChunk(chunk: Blob, index: number): Promise<{ index: number; text: string }> {
     for (let attempt = 0; attempt < MAX_RETRIES; attempt++) {
         try {
@@ -117,18 +117,18 @@ async function transcribeChunk(chunk: Blob, index: number): Promise<{ index: num
             console.warn(`Chunk ${index} attempt ${attempt + 1} failed:`, e);
             if (attempt < MAX_RETRIES - 1) {
                 await new Promise(resolve => setTimeout(resolve, RETRY_DELAY_MS * (attempt + 1)));
-            } else {
-                throw e;
             }
         }
     }
 
-    throw new Error(`チャンク${index}の文字起こしに${MAX_RETRIES}回失敗しました`);
+    // 全リトライ失敗 → スキップ（他のチャンクは続行）
+    console.error(`Chunk ${index}: ${MAX_RETRIES}回失敗、スキップします`);
+    return { index, text: '' };
 }
 
 /**
  * チャンクを最大 concurrency 個ずつ並列で文字起こし
- * 結果は元の順序で結合して返す
+ * 失敗チャンクはスキップし、成功分だけ順序通りに結合して返す
  */
 export async function transcribeChunksParallel(
     chunks: Blob[],
