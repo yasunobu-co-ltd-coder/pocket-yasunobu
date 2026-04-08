@@ -6,8 +6,8 @@ export const runtime = 'nodejs';
 
 const TABLE_NAME = 'pocket-yasunobu';
 
-const ALL_SPEAKER_IDS = [2, 3, 8, 47];
-const DEFAULT_SPEAKER_ID = 3;
+const ALL_SPEAKER_IDS = [2, 47];
+const DEFAULT_SPEAKER_ID = 2;
 
 // VPS保護: キュー内の未処理ジョブがこの数以上なら、選択中の1キャラだけ作成
 const QUEUE_THRESHOLD = 4;

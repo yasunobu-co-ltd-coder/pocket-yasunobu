@@ -29,8 +29,6 @@ export interface TTSPlayerHandle {
 
 const VOICE_OPTIONS = [
   { id: 2, name: '四国めたん', desc: '落ち着いた女性声' },
-  { id: 8, name: '春日部つむぎ', desc: '明るい女性声' },
-  { id: 3, name: 'ずんだもん', desc: '親しみやすい声' },
   { id: 47, name: 'ナースロボ＿タイプＴ', desc: '明瞭なロボ声' },
 ] as const;
 

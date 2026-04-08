@@ -5,7 +5,7 @@ import { generateTextHash, splitTextIntoChunks } from '@/lib/tts-chunk-splitter'
 export const runtime = 'nodejs';
 
 const TABLE_NAME = 'pocket-yasunobu';
-const ALL_SPEAKER_IDS = [2, 3, 8, 47];
+const ALL_SPEAKER_IDS = [2, 47];
 
 /**
  * POST /api/tts/batch-generate

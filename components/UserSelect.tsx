@@ -501,8 +501,6 @@ export default function UserSelect({ onSelect }: UserSelectProps) {
                                 <div className="space-y-3">
                                     {[
                                         { name: '四国めたん', url: 'https://voicevox.hiroshiba.jp/' },
-                                        { name: 'ずんだもん', url: 'https://voicevox.hiroshiba.jp/' },
-                                        { name: '春日部つむぎ', url: 'https://tsukushinyoki10.wixsite.com/ktsumugiofficial/' },
                                         { name: 'ナースロボ＿タイプＴ', url: 'https://voicevox.hiroshiba.jp/' },
                                     ].map(v => (
                                         <div key={v.name} className="flex items-center justify-between bg-slate-50 rounded-[10px] px-4 py-3">
