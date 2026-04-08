@@ -27,9 +27,16 @@ export interface TTSPlayerHandle {
   stop: () => void;
 }
 
+// NOTE: Storage容量削減のため一時的に四国めたんのみ。復旧時は以下4種に戻す:
+//   { id: 2, name: '四国めたん', desc: '落ち着いた女性声' },
+//   { id: 8, name: '春日部つむぎ', desc: '明るい女性声' },
+//   { id: 3, name: 'ずんだもん', desc: '親しみやすい声' },
+//   { id: 47, name: 'ナースロボ＿タイプＴ', desc: '明瞭なロボ声' },
+// + api/tts/generate の ALL_SPEAKER_IDS を [2, 3, 8, 47] に
+// + api/tts/batch-generate の ALL_SPEAKER_IDS を [2, 3, 8, 47] に
+// + UserSelect.tsx のクレジット表記に4キャラ追加
 const VOICE_OPTIONS = [
   { id: 2, name: '四国めたん', desc: '落ち着いた女性声' },
-  { id: 47, name: 'ナースロボ＿タイプＴ', desc: '明瞭なロボ声' },
 ] as const;
 
 const SPEED_OPTIONS = [1, 1.25, 1.5, 2] as const;
@@ -483,7 +490,7 @@ const TTSPlayer = forwardRef<TTSPlayerHandle, TTSPlayerProps>(function TTSPlayer
     }
   };
 
-  const selectedVoice = VOICE_OPTIONS.find(v => v.id === speakerId) || VOICE_OPTIONS[2];
+  const selectedVoice = VOICE_OPTIONS.find(v => v.id === speakerId) || VOICE_OPTIONS[0];
 
   // --- voice selector ---
   const voiceSelector = (

@@ -15,8 +15,8 @@ export interface SpeakerMap {
 
 /** デフォルトの話者設定 */
 export const DEFAULT_SPEAKER_MAP: SpeakerMap = {
-  A: 3,   // ずんだもん（メイン解説者）
-  B: 8,   // 春日部つむぎ（サブ解説者）
+  A: 2,   // 四国めたん（メイン話者）
+  B: 3,   // ずんだもん（サブ話者）
 };
 
 /** 話者の表示名 */
