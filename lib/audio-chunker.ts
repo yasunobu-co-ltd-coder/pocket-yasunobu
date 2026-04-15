@@ -77,34 +77,34 @@ function downsampleChunk(
 }
 
 /**
- * 音声ファイルをデコード→チャンク単位で16kHzダウンサンプル→WAVチャンク配列を返す
+ * 音声ファイルをデコード→WAVチャンク配列を返す
  *
- * メモリ最適化: channelDataから直接チャンク範囲を切り出してダウンサンプルするため、
- * 全体をダウンサンプルした巨大バッファを保持しない
+ * メモリ最適化:
+ * - AudioContextを16kHzで作成し、decodeAudioData時点で16kHzにリサンプル
+ *   → 48kHzデコード（~1.1GB）を回避し、~384MBに抑える
+ * - ダウンサンプル処理が不要になり、チャンクのslice→WAV変換のみ
  */
 export async function splitAudioIntoChunks(file: File): Promise<{ chunks: Blob[]; totalDuration: number }> {
     const arrayBuffer = await file.arrayBuffer();
-    const audioContext = new AudioContext();
+
+    // 16kHzのAudioContextを作ることで、decodeAudioDataが16kHzにリサンプルしてくれる
+    // これによりメモリ使用量が48kHzの約1/3になる
+    const audioContext = new AudioContext({ sampleRate: TARGET_SAMPLE_RATE });
     const audioBuffer = await audioContext.decodeAudioData(arrayBuffer);
 
-    const originalRate = audioBuffer.sampleRate;
     const totalDuration = audioBuffer.duration;
-    const channelData = audioBuffer.getChannelData(0); // mono
+    const channelData = audioBuffer.getChannelData(0); // mono, already 16kHz
     const totalSamples = channelData.length;
 
-    // 元のサンプルレートでのチャンクサイズ
-    const originalSamplesPerChunk = originalRate * CHUNK_DURATION_SEC;
-    const totalChunks = Math.ceil(totalSamples / originalSamplesPerChunk);
+    const samplesPerChunk = TARGET_SAMPLE_RATE * CHUNK_DURATION_SEC;
+    const totalChunks = Math.ceil(totalSamples / samplesPerChunk);
 
     const chunks: Blob[] = [];
     for (let i = 0; i < totalChunks; i++) {
-        const srcStart = i * originalSamplesPerChunk;
-        const srcEnd = Math.min(srcStart + originalSamplesPerChunk, totalSamples);
-
-        // チャンク単位でダウンサンプル（全体バッファ不要）
-        const downsampled = downsampleChunk(channelData, srcStart, srcEnd, originalRate, TARGET_SAMPLE_RATE);
-        chunks.push(encodeWav(downsampled, TARGET_SAMPLE_RATE));
-        // downsampledはスコープ外でGC対象になる
+        const start = i * samplesPerChunk;
+        const end = Math.min(start + samplesPerChunk, totalSamples);
+        const chunkSamples = channelData.slice(start, end);
+        chunks.push(encodeWav(chunkSamples, TARGET_SAMPLE_RATE));
     }
 
     await audioContext.close();
