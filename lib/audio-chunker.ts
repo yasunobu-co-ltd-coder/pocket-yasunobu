@@ -1,6 +1,9 @@
 /**
  * 音声ファイルをWeb Audio APIでデコードし、16kHz WAVチャンクに分割する
  * 16kHzダウンサンプルでファイルサイズを大幅削減（Whisperの内部処理も16kHz）
+ *
+ * メモリ効率: デコード後すぐにチャンク単位でダウンサンプル→WAV変換し、
+ * 大きなPCMバッファを早期に解放して長時間音声でもOOMを回避する
  */
 
 const CHUNK_DURATION_SEC = 18; // 18秒ごとに分割（1時間≒200チャンク）
@@ -45,16 +48,25 @@ function encodeWav(samples: Float32Array, sampleRate: number): Blob {
     return new Blob([buffer], { type: 'audio/wav' });
 }
 
-/** 線形補間でダウンサンプル */
-function downsample(channelData: Float32Array, originalRate: number, targetRate: number): Float32Array {
-    if (originalRate === targetRate) return channelData;
+/** 線形補間でダウンサンプル（チャンク単位） */
+function downsampleChunk(
+    channelData: Float32Array,
+    srcStart: number,
+    srcEnd: number,
+    originalRate: number,
+    targetRate: number
+): Float32Array {
+    if (originalRate === targetRate) {
+        return channelData.slice(srcStart, srcEnd);
+    }
 
     const ratio = originalRate / targetRate;
-    const newLength = Math.floor(channelData.length / ratio);
+    const srcLength = srcEnd - srcStart;
+    const newLength = Math.floor(srcLength / ratio);
     const result = new Float32Array(newLength);
 
     for (let i = 0; i < newLength; i++) {
-        const srcIdx = i * ratio;
+        const srcIdx = srcStart + i * ratio;
         const srcFloor = Math.floor(srcIdx);
         const srcCeil = Math.min(srcFloor + 1, channelData.length - 1);
         const frac = srcIdx - srcFloor;
@@ -64,7 +76,12 @@ function downsample(channelData: Float32Array, originalRate: number, targetRate:
     return result;
 }
 
-/** 音声ファイルをデコード→16kHzダウンサンプル→WAVチャンク配列を返す */
+/**
+ * 音声ファイルをデコード→チャンク単位で16kHzダウンサンプル→WAVチャンク配列を返す
+ *
+ * メモリ最適化: channelDataから直接チャンク範囲を切り出してダウンサンプルするため、
+ * 全体をダウンサンプルした巨大バッファを保持しない
+ */
 export async function splitAudioIntoChunks(file: File): Promise<{ chunks: Blob[]; totalDuration: number }> {
     const arrayBuffer = await file.arrayBuffer();
     const audioContext = new AudioContext();
@@ -73,20 +90,21 @@ export async function splitAudioIntoChunks(file: File): Promise<{ chunks: Blob[]
     const originalRate = audioBuffer.sampleRate;
     const totalDuration = audioBuffer.duration;
     const channelData = audioBuffer.getChannelData(0); // mono
+    const totalSamples = channelData.length;
 
-    // 16kHzにダウンサンプル
-    const downsampled = downsample(channelData, originalRate, TARGET_SAMPLE_RATE);
-    const totalSamples = downsampled.length;
-
-    const samplesPerChunk = TARGET_SAMPLE_RATE * CHUNK_DURATION_SEC;
-    const totalChunks = Math.ceil(totalSamples / samplesPerChunk);
+    // 元のサンプルレートでのチャンクサイズ
+    const originalSamplesPerChunk = originalRate * CHUNK_DURATION_SEC;
+    const totalChunks = Math.ceil(totalSamples / originalSamplesPerChunk);
 
     const chunks: Blob[] = [];
     for (let i = 0; i < totalChunks; i++) {
-        const start = i * samplesPerChunk;
-        const end = Math.min(start + samplesPerChunk, totalSamples);
-        const chunkSamples = downsampled.slice(start, end);
-        chunks.push(encodeWav(chunkSamples, TARGET_SAMPLE_RATE));
+        const srcStart = i * originalSamplesPerChunk;
+        const srcEnd = Math.min(srcStart + originalSamplesPerChunk, totalSamples);
+
+        // チャンク単位でダウンサンプル（全体バッファ不要）
+        const downsampled = downsampleChunk(channelData, srcStart, srcEnd, originalRate, TARGET_SAMPLE_RATE);
+        chunks.push(encodeWav(downsampled, TARGET_SAMPLE_RATE));
+        // downsampledはスコープ外でGC対象になる
     }
 
     await audioContext.close();
