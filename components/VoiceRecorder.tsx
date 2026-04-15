@@ -647,8 +647,16 @@ export default function VoiceRecorder({ userId, userName, onSaved, onCancel }: V
             try {
                 return await transcribeWithChunking(file);
             } catch (chunkError) {
-                console.warn('クライアント側の音声分割に失敗、サーバーで処理します:', chunkError);
-                return await transcribeServerSide(file);
+                console.warn('クライアント側の音声分割に失敗:', chunkError);
+                // サーバーサイドフォールバックは4.5MB以下のみ（Vercelペイロード制限）
+                if (file.size <= 4.5 * 1024 * 1024) {
+                    return await transcribeServerSide(file);
+                }
+                throw new Error(
+                    `音声ファイルの解析に失敗しました（${(file.size / 1024 / 1024).toFixed(1)}MB）。` +
+                    'ブラウザのメモリ不足の可能性があります。' +
+                    '他のタブを閉じてからもう一度お試しください。'
+                );
             }
         }
     };
