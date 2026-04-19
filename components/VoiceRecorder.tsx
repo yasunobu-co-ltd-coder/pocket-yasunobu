@@ -859,20 +859,8 @@ export default function VoiceRecorder({ userId, userName, onSaved, onCancel }: V
         }
     };
 
-    // TTS自動生成（ジョブ作成のみ → VPSワーカーが処理）
-    const triggerTtsInBackground = async (minuteId: number) => {
-        try {
-            const genRes = await fetch('/api/tts/generate', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ minute_id: minuteId }),
-            });
-            if (!genRes.ok) return;
-            console.log('[TTS] Job created for minute', minuteId, '- VPS worker will process');
-        } catch (e) {
-            console.error('[TTS] Job creation error:', e);
-        }
-    };
+    // TTS自動生成は廃止: ユーザーが「音声を生成」ボタンを押した時のみ生成する
+    // 3日再生なしで自動削除される（Vercel Cron → /api/tts/cleanup）
 
     // pocket-yasunobu テーブルに保存
     const saveMinutes = async () => {
@@ -917,12 +905,7 @@ export default function VoiceRecorder({ userId, userName, onSaved, onCancel }: V
                 throw new Error(inserted.error || 'Save failed');
             }
 
-            // 裏でTTS音声を自動生成
-            if (inserted?.id) {
-                triggerTtsInBackground(inserted.id);
-            }
-
-            alert('保存しました（音声は裏で自動生成中）');
+            alert('保存しました');
             onSaved();
         } catch (e: unknown) {
             console.error(e);

@@ -87,15 +87,7 @@ export default function Page() {
     setActiveTab('home');
   };
 
-  // ログイン時に既存議事録の音声をバックグラウンド生成
-  useEffect(() => {
-    if (!currentUser) return;
-    fetch('/api/tts/batch-generate', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ batch_size: 5 }),
-    }).catch(() => {});
-  }, [currentUser]);
+  // TTS音声は「音声を生成」ボタンで個別生成。バッチ自動生成は廃止。
 
   // Fetch records for home dashboard
   useEffect(() => {

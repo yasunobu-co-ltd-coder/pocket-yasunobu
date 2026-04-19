@@ -300,7 +300,7 @@ const TTSPlayer = forwardRef<TTSPlayerHandle, TTSPlayerProps>(function TTSPlayer
     setErrorMsg('');
     setGenTotal(0);
     setGenCompleted(0);
-    checkStatus(newId, true);
+    checkStatus(newId);
   };
 
   // --- 次チャンクのURLをブラウザキャッシュにプリフェッチ ---
@@ -452,6 +452,12 @@ const TTSPlayer = forwardRef<TTSPlayerHandle, TTSPlayerProps>(function TTSPlayer
     chunkIndexRef.current = 0;
     notifyProgress(0);
     notifyPlay(true);
+    // 最終再生日時を更新（3日ルールの基準）— 失敗しても再生は続行
+    fetch('/api/tts/touch', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ minute_id: minuteId, speaker_id: speakerIdRef.current }),
+    }).catch(() => {});
     playChunk(0);
   };
 
